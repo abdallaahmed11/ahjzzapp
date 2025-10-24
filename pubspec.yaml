@@ -1,0 +1,34 @@
+name: ahjizzzapp
+description: "A professional booking app built with Flutter and Firebase."
+
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.3 <4.0.0' # (تأكد أن هذا الإصدار مناسب)
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # 1. State Management (Provider)
+  provider: ^6.1.2
+
+  # 2. Firebase (الباك إند)
+  firebase_core: ^2.27.0     # لربط المشروع بـ Firebase
+  firebase_auth: ^4.17.8     # لعمليات تسجيل الدخول وإنشاء الحساب
+  cloud_firestore: ^4.15.8   # قاعدة البيانات (لتخزين الخدمات، الحجوزات)
+  intl: ^0.19.0
+
+  # (اختياري لكن مهم لاحقاً)
+  # get_storage: ^2.1.1      # لتخزين بسيط (الثيم، اللغة)
+
+  cupertino_icons: ^1.0.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+
+flutter:
+  uses-material-design: true
