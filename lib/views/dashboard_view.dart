@@ -4,45 +4,52 @@ import 'package:provider/provider.dart';
 // استيراد الـ ViewModels المطلوبة
 import 'package:ahjizzzapp/viewmodels/dashboard_viewmodel.dart';
 import 'package:ahjizzzapp/viewmodels/home_viewmodel.dart';
-import 'package:ahjizzzapp/viewmodels/my_bookings_viewmodel.dart';
-import 'package:ahjizzzapp/viewmodels/profile_viewmodel.dart';
+import 'package:ahjizzzapp/viewmodels/my_bookings_viewmodel.dart'; // ViewModel حجوزاتي
+import 'package:ahjizzzapp/viewmodels/profile_viewmodel.dart';    // ViewModel حسابي
 
-// استيراد الـ Views المطلوبة
+// استيراد الـ Views (الشاشات) المطلوبة
 import 'package:ahjizzzapp/views/home_view.dart';
-import 'package:ahjizzzapp/views/my_bookings_view.dart';
-import 'package:ahjizzzapp/views/profile_view.dart';
+import 'package:ahjizzzapp/views/my_bookings_view.dart'; // واجهة حجوزاتي
+import 'package:ahjizzzapp/views/profile_view.dart';    // واجهة حسابي
+// (سنضيف واجهة التقييمات لاحقاً)
+// import 'package:ahjizzzapp/views/reviews_view.dart';
 
 // استيراد ملف الألوان
 import 'package:ahjizzzapp/shared/app_colors.dart';
 
-// استيراد خدمة المصادقة (AuthService) لتمريرها للـ ProfileViewModel
+// استيراد الخدمات المطلوبة للـ ViewModels
 import 'package:ahjizzzapp/services/auth_service.dart';
-
-// (سنضيف خدمة قاعدة البيانات DbService لاحقاً)
 import 'package:ahjizzzapp/services/db_service.dart';
 
 class DashboardView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // 1. استخدام MultiProvider لتوفير كل الـ ViewModels المطلوبة للشاشات داخل الداشبورد
+    // يتم توفير الخدمات (AuthService, DbService) من الـ MultiProvider الأعلى في main.dart
     return MultiProvider(
       providers: [
         // ViewModel للتحكم في التاب الحالي للداشبورد نفسه
         ChangeNotifierProvider(create: (_) => DashboardViewModel()),
 
-        // ViewModel للشاشة الرئيسية (Home)
-        // TODO: مستقبلاً، سنمرر خدمة قاعدة البيانات DbService هنا
+        // ViewModel للشاشة الرئيسية (Home) - يعتمد على DbService
         ChangeNotifierProvider(
-          create: (context) => HomeViewModel(context.read<DbService>()), // <-- التعديل هنا
+          create: (context) => HomeViewModel(context.read<DbService>()),
         ),
-        // ViewModel لشاشة حجوزاتي (My Bookings)
-        // TODO: مستقبلاً، سنمرر خدمة قاعدة البيانات DbService هنا
-        ChangeNotifierProvider(create: (_) => MyBookingsViewModel(/* context.read<DbService>() */)),
 
-        // ViewModel لشاشة حسابي (Profile)
-        // (نمرر خدمة AuthService الموجودة مسبقاً في الـ context)
+        // ViewModel لشاشة حجوزاتي (My Bookings) - يعتمد على DbService و AuthService
         ChangeNotifierProvider(
-          create: (context) => ProfileViewModel(context.read<AuthService>()),
+          create: (context) => MyBookingsViewModel(
+            context.read<DbService>(),
+            context.read<AuthService>(),
+          ),
+        ),
+
+        // ViewModel لشاشة حسابي (Profile) - يعتمد على DbService و AuthService
+        ChangeNotifierProvider(
+          create: (context) => ProfileViewModel(
+            context.read<AuthService>(),
+            context.read<DbService>(),
+          ),
         ),
 
         // (سنضيف ViewModel لشاشة التقييمات Reviews هنا لاحقاً)
@@ -51,39 +58,40 @@ class DashboardView extends StatelessWidget {
       child: Consumer<DashboardViewModel>(
         builder: (context, dashboardViewModel, child) {
 
-          // 3. قائمة الشاشات التي سيتم التنقل بينها
+          // 3. قائمة الشاشات التي سيتم التنقل بينها بناءً على التاب المختار
           final List<Widget> screens = [
-            HomeView(),
-            MyBookingsView(), // <-- تم استبدال الشاشة الوهمية
-            Center(child: Text('Reviews Page')),    // شاشة وهمية مؤقتة
-            ProfileView(), // <-- تم استبدال الشاشة الوهمية
+            HomeView(),        // الشاشة الأولى
+            MyBookingsView(),  // الشاشة الثانية
+            Center(child: Text('Reviews Page (TBD)')), // شاشة وهمية مؤقتة للتقييمات
+            ProfileView(),     // الشاشة الرابعة
           ];
 
-          // 4. بناء الـ Scaffold مع شريط التنقل السفلي
+          // 4. بناء الـ Scaffold الذي يحتوي على الجسم وشريط التنقل السفلي
           return Scaffold(
-            // استخدام IndexedStack للحفاظ على حالة الشاشات عند التنقل
+            // استخدام IndexedStack يحافظ على حالة كل شاشة (Tab) عند التنقل بينها
+            // (لا يعيد بناء الشاشة كل مرة نرجع لها)
             body: IndexedStack(
-              index: dashboardViewModel.currentIndex,
-              children: screens,
+              index: dashboardViewModel.currentIndex, // التاب الحالي
+              children: screens, // قائمة الشاشات
             ),
             // شريط التنقل السفلي
             bottomNavigationBar: BottomNavigationBar(
-              currentIndex: dashboardViewModel.currentIndex,
-              onTap: (index) => dashboardViewModel.setIndex(index), // استدعاء دالة تغيير التاب
+              currentIndex: dashboardViewModel.currentIndex, // تحديد التاب النشط
+              onTap: (index) => dashboardViewModel.setIndex(index), // استدعاء دالة تغيير التاب عند الضغط
 
-              type: BottomNavigationBarType.fixed, // لإظهار كل الـ labels
-              selectedItemColor: kPrimaryColor,   // لون الأيقونة النشطة
-              unselectedItemColor: Colors.grey,     // لون الأيقونة غير النشطة
-              showUnselectedLabels: true,           // إظهار الـ label دائماً
-              selectedFontSize: 12,
-              unselectedFontSize: 12,
+              type: BottomNavigationBarType.fixed, // لإظهار كل الـ labels حتى لو كانوا أكثر من 3
+              selectedItemColor: kPrimaryColor,   // لون الأيقونة والنص النشط (الأخضر)
+              unselectedItemColor: Colors.grey,     // لون الأيقونة والنص غير النشط (الرمادي)
+              showUnselectedLabels: true,           // إظهار النصوص دائماً
+              selectedFontSize: 12,                // حجم خط النص النشط
+              unselectedFontSize: 12,               // حجم خط النص غير النشط
 
-              // تعريف عناصر شريط التنقل
-              items: [
+              // تعريف عناصر (أيقونات ونصوص) شريط التنقل
+              items: const [
                 BottomNavigationBarItem(
-                  icon: Icon(Icons.home_outlined),
-                  activeIcon: Icon(Icons.home),
-                  label: 'Home',
+                  icon: Icon(Icons.home_outlined),    // أيقونة غير نشطة
+                  activeIcon: Icon(Icons.home),       // أيقونة نشطة
+                  label: 'Home',                      // النص
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.calendar_month_outlined),

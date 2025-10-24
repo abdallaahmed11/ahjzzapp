@@ -1,66 +1,83 @@
 import 'package:flutter/material.dart';
-import 'package:ahjizzzapp/models/service_provider.dart';
-import 'package:ahjizzzapp/models/quick_category.dart';
-import 'package:ahjizzzapp/models/top_rated_provider.dart';
+// استيراد الخدمة المطلوبة للتفاعل مع Firestore
 import 'package:ahjizzzapp/services/db_service.dart';
+// استيراد كل الموديلات المطلوبة
+import 'package:ahjizzzapp/models/quick_category.dart';
+import 'package:ahjizzzapp/models/service_provider.dart';
+import 'package:ahjizzzapp/models/top_rated_provider.dart';
 
 class HomeViewModel extends ChangeNotifier {
+  // الخدمة للتفاعل مع Firestore
   final DbService _dbService;
 
-  String _userName = "Ahmed"; // [cite: 31] (سنجلبه من Firestore لاحقاً)
+  // --- متغيرات الحالة ---
+  // اسم المستخدم (سيتم جلبه لاحقاً)
+  String _userName = "User"; // اسم افتراضي
+  // مؤشر حالة التحميل
   bool _isLoading = false;
-
+  // قوائم لحفظ البيانات التي تم جلبها من Firestore
   List<ServiceProvider> _servicesNearYou = [];
   List<QuickCategory> _quickCategories = [];
   List<TopRatedProvider> _topRatedProviders = [];
+  // (اختياري: متغير لحفظ رسائل الخطأ)
+  // String? _errorMessage;
 
+  // --- Getters ---
+  // توفير وصول للقراءة فقط لمتغيرات الحالة للـ View
   String get userName => _userName;
   bool get isLoading => _isLoading;
   List<ServiceProvider> get servicesNearYou => _servicesNearYou;
   List<QuickCategory> get quickCategories => _quickCategories;
   List<TopRatedProvider> get topRatedProviders => _topRatedProviders;
+  // String? get errorMessage => _errorMessage;
 
-  // HomeViewModel(this._dbService) {
-  HomeViewModel(this._dbService) { // <-- تعديل الـ Constructor
+  // --- Constructor ---
+  // يتطلب تمرير DbService عند إنشاء الـ ViewModel
+  HomeViewModel(this._dbService) {
+    // جلب البيانات الأولية عند إنشاء الـ ViewModel
     fetchData();
+    // TODO: جلب اسم المستخدم الحقيقي من AuthService أو DbService لاحقاً
+    // _loadUserName();
   }
 
-  // (داخل HomeViewModel)
+  // --- الأفعال (Actions) ---
+
+  // جلب كل البيانات المطلوبة للشاشة الرئيسية من Firestore
   Future<void> fetchData() async {
     _isLoading = true;
-    notifyListeners();
+    // _errorMessage = null; // مسح الأخطاء السابقة
+    notifyListeners(); // إخطار الواجهة بأن التحميل بدأ
 
-    try { // استخدام try-catch لمعالجة الأخطاء المحتملة
-      // --- جلب الفئات الحقيقية (أو الوهمية حالياً) من DbService ---
-      _quickCategories = await _dbService.getCategories();
-      // -----------------------------------------------------
+    try {
+      // جلب كل البيانات المطلوبة بالتوازي باستخدام Future.wait للكفاءة
+      final results = await Future.wait([
+        _dbService.getCategories(),         // جلب الفئات
+        _dbService.getServicesNearYou(),    // جلب الخدمات القريبة
+        _dbService.getTopRatedProviders(), // جلب الأعلى تقييماً
+        // TODO: إضافة استدعاءات أخرى هنا إذا لزم الأمر (مثل جلب اسم المستخدم)
+      ]);
 
-      // TODO: جلب باقي البيانات (Services Near You, Top Rated) من DbService لاحقاً
-      // _servicesNearYou = await _dbService.getServicesNearYou();
-      // _topRatedProviders = await _dbService.getTopRated();
+      // تعيين النتائج التي تم جلبها لمتغيرات الحالة
+      // التأكد من التحويل الصحيح للنوع ومعالجة القيمة null
+      _quickCategories = results[0] as List<QuickCategory>? ?? [];
+      _servicesNearYou = results[1] as List<ServiceProvider>? ?? [];
+      _topRatedProviders = results[2] as List<TopRatedProvider>? ?? [];
 
-      // --- (إزالة أو تعليق البيانات الوهمية القديمة الخاصة بالفئات) ---
-      // _quickCategories = [ ... ]; // <-- هذا السطر يتم إلغاؤه
-      // -------------------------------------------------------
-
-      // (البيانات الوهمية للأقسام الأخرى تظل مؤقتاً)
-      _servicesNearYou = [
-        ServiceProvider(id: "1", name: "Sam's Barbershop", image: "...", rating: 4.8, price: "\$25", distance: "1.2 km away"),
-        ServiceProvider(id: "2", name: "Elite Auto Wash", image: "...", rating: 4.9, price: "\$40", distance: "0.8 km away"),
-      ];
-      _topRatedProviders = [
-        TopRatedProvider(id: "1", name: "Premium Cuts Studio", rating: 4.9, reviews: 234, category: "Barbershop", price: "\$30"),
-        TopRatedProvider(id: "2", name: "Crystal Clean Pro", rating: 4.8, reviews: 187, category: "House Cleaning", price: "\$75"),
-        TopRatedProvider(id: "3", name: "AutoCare Express", rating: 4.7, reviews: 156, category: "Car Wash", price: "\$35"),
-      ];
-      // -------------------------------------------------------
+      print("HomeViewModel: Data fetched successfully.");
+      print("HomeViewModel: Found ${_topRatedProviders.length} top rated providers."); // للتأكد من العدد
 
     } catch (e) {
-      print("Error fetching home data: $e");
-      // (يمكن عرض رسالة خطأ للمستخدم هنا)
+      // معالجة الأخطاء المحتملة أثناء جلب البيانات
+      print("Error fetching home data in ViewModel: $e");
+      // اختيارياً، قم بتعيين متغير حالة لرسالة الخطأ لعرضها في الواجهة
+      // _errorMessage = "Could not load data. Please try again.";
     } finally {
+      // التأكد من إيقاف حالة التحميل بغض النظر عن النجاح أو الفشل
       _isLoading = false;
-      notifyListeners();
+      notifyListeners(); // إخطار الواجهة بأن التحميل انتهى
     }
   }
+
+// مثال لجلب اسم المستخدم (يتم تنفيذه لاحقاً)
+// Future<void> _loadUserName() async { ... }
 }
