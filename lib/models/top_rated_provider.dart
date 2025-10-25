@@ -5,6 +5,7 @@ class TopRatedProvider {
   final int reviews;
   final String category;
   final String price;
+  final String image; // <-- 1. إضافة حقل الصورة هنا
 
   TopRatedProvider({
     required this.id,
@@ -13,5 +14,6 @@ class TopRatedProvider {
     required this.reviews,
     required this.category,
     required this.price,
+    required this.image, // <-- 2. إضافته للـ constructor
   });
 }

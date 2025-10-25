@@ -92,6 +92,7 @@ class DbService {
           reviews: (data['reviews'] as int?) ?? 0,
           category: data['category'] ?? 'General',
           price: data['priceIndicator'] ?? 'N/A',
+          image: data['imageUrl'] ?? '', // <-- إضافة جلب رابط الصورة
         );
       }).toList();
       print("DbService: Fetched ${topProviders.length} top rated providers.");
