@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-// We reuse the ServiceProvider model
+// استيراد الموديلات والخدمات المطلوبة
 import 'package:ahjizzzapp/models/service_provider.dart';
-// import 'package:ahjizzzapp/services/db_service.dart'; // To fetch more details
+import 'package:ahjizzzapp/services/db_service.dart'; // <-- استيراد DbService
+import 'package:ahjizzzapp/views/time_selection_view.dart'; // <-- استيراد الشاشة التالية
 
-// Example Model for a specific service offered by a provider
+// **** موديل الخدمة: يُعرّف هنا لأنه خاص بهذه الواجهة ****
+// (يمكن نقله لملف models/provider_service_model.dart إذا أردت)
 class ProviderServiceModel {
   final String id;
   final String name;
@@ -17,60 +19,74 @@ class ProviderServiceModel {
     required this.duration,
   });
 }
+// *****************************************************
 
 class ProviderDetailsViewModel extends ChangeNotifier {
-  // final DbService _dbService; // To fetch real data
-  final ServiceProvider provider; // The basic provider info passed from the previous screen
+  final DbService _dbService; // الخدمة لجلب البيانات
+  final ServiceProvider provider; // معلومات المزود الأساسية
 
-  bool _isLoading = false;
-  // List to hold specific services offered by this provider
-  List<ProviderServiceModel> _services = [];
-  ProviderServiceModel? _selectedService; // Track which service is selected
+  // --- الحالة (State) ---
+  bool _isLoading = true; // البدء بحالة التحميل
+  List<ProviderServiceModel> _services = []; // قائمة الخدمات الفعلية
+  ProviderServiceModel? _selectedService; // الخدمة التي يختارها المستخدم
+  String? _errorMessage; // لعرض أي أخطاء
 
+  // --- Getters ---
   bool get isLoading => _isLoading;
   List<ProviderServiceModel> get services => _services;
   ProviderServiceModel? get selectedService => _selectedService;
+  String? get errorMessage => _errorMessage;
 
-  // ProviderDetailsViewModel(this._dbService, this.provider) { // Future constructor
-  ProviderDetailsViewModel(this.provider) { // Temporary constructor
+  // --- Constructor ---
+  // يتطلب DbService ومعلومات المزود
+  ProviderDetailsViewModel(this._dbService, this.provider) {
+    // جلب قائمة الخدمات فور إنشاء الـ ViewModel
     fetchProviderServices();
   }
 
+  // --- الأفعال (Actions) ---
+
+  // **** دالة جلب الخدمات (مُحدثة) ****
   Future<void> fetchProviderServices() async {
     _isLoading = true;
-    notifyListeners();
+    _errorMessage = null; // مسح الأخطاء السابقة
+    // (لا نحتاج notifyListeners() هنا لأننا سنفعلها في finally)
 
-    // TODO: Replace with real data fetching from Firestore based on provider.id
-    // _services = await _dbService.getServicesForProvider(provider.id);
-
-    // (Temporary mock data for services offered by "Sam's Barbershop")
-    await Future.delayed(Duration(milliseconds: 500));
-    _services = [
-      ProviderServiceModel(id: 's1', name: "Men's Haircut", price: "\$25", duration: "30 min"),
-      ProviderServiceModel(id: 's2', name: "Beard Trim", price: "\$15", duration: "15 min"),
-      ProviderServiceModel(id: 's3', name: "Haircut & Beard", price: "\$35", duration: "45 min"),
-      ProviderServiceModel(id: 's4', name: "Kids Haircut", price: "\$20", duration: "25 min"),
-    ];
-
-    _isLoading = false;
-    notifyListeners();
+    try {
+      // استدعاء الدالة الجديدة من DbService باستخدام ID المزود
+      _services = await _dbService.getServicesForProvider(provider.id);
+      print("ProviderDetailsViewModel: Fetched ${_services.length} services.");
+    } catch (e) {
+      print("Error fetching provider services in ViewModel: $e");
+      _errorMessage = "Could not load services for this provider.";
+      _services = []; // قائمة فارغة في حالة الخطأ
+    } finally {
+      _isLoading = false;
+      notifyListeners(); // إخفاء التحميل وتحديث الواجهة بالبيانات (أو الخطأ)
+    }
   }
+  // **********************************
 
-  // Function to select a service
+  // دالة اختيار الخدمة
   void selectService(ProviderServiceModel service) {
     _selectedService = service;
-    notifyListeners(); // Update UI to show selection/enable button
+    notifyListeners(); // تحديث الواجهة لإظهار الاختيار وتفعيل الزر
   }
 
-  // Function to proceed to the next step (Time Selection)
+  // دالة الانتقال لشاشة اختيار الوقت
   void proceedToBooking(BuildContext context) {
     if (_selectedService != null) {
       print("Proceeding to book: ${provider.name} - ${_selectedService!.name}");
-      // TODO: Navigate to Time Selection Screen, passing provider and selected service
-      // Navigator.of(context).pushNamed('/time-selection', arguments: {
-      //   'provider': provider,
-      //   'service': _selectedService,
-      // });
+      // الانتقال باستخدام MaterialPageRoute وتمرير البيانات اللازمة
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => TimeSelectionView(
+            provider: provider,        // تمرير المزود
+            service: _selectedService!, // تمرير الخدمة المختارة
+          ),
+          settings: const RouteSettings(name: '/time-selection'), // اسم المسار
+        ),
+      );
     }
   }
 }
