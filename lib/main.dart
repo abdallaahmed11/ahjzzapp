@@ -28,7 +28,13 @@ import 'package:ahjizzzapp/viewmodels/update_profile_viewmodel.dart'; // <-- 2. 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  try {
+    await Firebase.initializeApp(
+      // options: DefaultFirebaseOptions.currentPlatform,
+    );
+    print("Firebase initialized successfully!");
+  } catch (e) { print("Error initializing Firebase: $e"); }
+
   runApp(
     MultiProvider(
       providers: [
@@ -68,14 +74,46 @@ void main() async {
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    // (الوصول للخدمة هنا آمن لأن الـ Provider فوق MyApp)
     final authService = context.read<AuthService>();
 
     return MaterialApp(
       title: 'Ahjiz App',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData( /* ... App Theme ... */ ),
+      // (الثيم كما هو)
+      theme: ThemeData(
+        primaryColor: kPrimaryColor,
+        scaffoldBackgroundColor: kLightBackgroundColor,
+        fontFamily: 'Roboto',
+        colorScheme: ColorScheme.fromSeed(seedColor: kPrimaryColor),
+        useMaterial3: true,
+        appBarTheme: const AppBarTheme(
+          elevation: 1,
+          backgroundColor: kLightBackgroundColor,
+          foregroundColor: Colors.black87,
+          iconTheme: IconThemeData(color: Colors.black87),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: kPrimaryColor,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            side: BorderSide(color: Colors.grey[400]!),
+            foregroundColor: Colors.grey[700],
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            textStyle: const TextStyle(fontSize: 12),
+          ),
+        ),
+      ),
 
-      // Authentication State Handling
+      // (التحقق من حالة المصادقة كما هو)
       home: StreamProvider<User?>.value(
         value: authService.authStateChanges,
         initialData: authService.currentUser,

@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 // استيراد كل الموديلات المطلوبة
@@ -8,6 +7,7 @@ import 'package:ahjizzzapp/models/top_rated_provider.dart';
 import 'package:ahjizzzapp/models/booking_model.dart';
 import 'package:ahjizzzapp/models/review_model.dart';
 import 'package:ahjizzzapp/viewmodels/provider_details_viewmodel.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class DbService {
   // المراجع للمجموعات (Collections) في Firestore
@@ -23,7 +23,9 @@ class DbService {
   FirebaseFirestore.instance.collection('reviews');
 
 
-  // --- (كل الدوال السابقة كما هي) ---
+  // --- دوال جلب البيانات (لشاشة Home وغيرها) ---
+
+  // دالة جلب الفئات
   Future<List<QuickCategory>> getCategories() async {
     try {
       print("DbService: Fetching categories from Firestore...");
@@ -45,6 +47,7 @@ class DbService {
     }
   }
 
+  // دالة جلب الخدمات القريبة
   Future<List<ServiceProvider>> getServicesNearYou({int limit = 5}) async {
     try {
       print("DbService: Fetching nearby services from Firestore...");
@@ -71,6 +74,7 @@ class DbService {
     }
   }
 
+  // دالة جلب الأعلى تقييماً
   Future<List<TopRatedProvider>> getTopRatedProviders({int limit = 3}) async {
     try {
       print("DbService: Fetching top rated providers from Firestore...");
@@ -98,6 +102,7 @@ class DbService {
     }
   }
 
+  // دالة جلب المزودين حسب الفئة
   Future<List<ServiceProvider>> getProvidersByCategory(String categoryName, {String? sortBy, int limit = 10}) async {
     try {
       print("DbService: Fetching providers for category: $categoryName");
@@ -136,6 +141,7 @@ class DbService {
     }
   }
 
+  // دالة جلب الخدمات الخاصة بمزود خدمة معين
   Future<List<ProviderServiceModel>> getServicesForProvider(String providerId) async {
     try {
       print("DbService: Fetching services for provider ID: $providerId");
@@ -164,20 +170,51 @@ class DbService {
     }
   }
 
+  // --- دوال المستخدمين (User Profile) ---
+
+  // (مُعدلة: لإضافة حقول افتراضية فارغة)
   Future<void> createUserProfile({required String uid, required String name, required String email}) async {
     try {
       await _usersCollection.doc(uid).set({
-        'name': name, 'email': email, 'createdAt': FieldValue.serverTimestamp(),
+        'name': name,
+        'email': email,
+        'createdAt': FieldValue.serverTimestamp(),
+        'phone': '', // <-- إضافة حقل هاتف فارغ
+        'city': '',  // <-- إضافة حقل مدينة فارغ
+        'bio': '',   // <-- إضافة حقل نبذة فارغ
       }, SetOptions(merge: true));
       print("DbService: User profile created/updated for UID: $uid");
     } catch (e) { print("Error creating/updating user profile: $e"); throw Exception("Could not save user profile."); }
   }
-  Future<void> updateUserProfile(String uid, {required String name, String? phone}) async {
+
+  // دالة جلب كل بيانات المستخدم
+  Future<Map<String, dynamic>?> getUserProfile(String uid) async {
+    try {
+      DocumentSnapshot doc = await _usersCollection.doc(uid).get();
+      if (doc.exists) {
+        return doc.data() as Map<String, dynamic>?; // إرجاع كل البيانات
+      }
+      print("DbService: User profile not found for UID: $uid");
+      return null;
+    } catch (e) {
+      print("Error fetching user profile: $e");
+      return null;
+    }
+  }
+
+  // تعديل دالة تحديث بيانات المستخدم
+  Future<void> updateUserProfile(String uid, {
+    required String name,
+    String? phone,
+    String? city,
+    String? bio,
+  }) async {
     try {
       Map<String, dynamic> dataToUpdate = {
         'name': name,
-        // (يمكن إضافة حقول أخرى هنا)
-        // 'phone': phone,
+        if (phone != null) 'phone': phone,
+        if (city != null) 'city': city,
+        if (bio != null) 'bio': bio,
       };
 
       await _usersCollection.doc(uid).update(dataToUpdate);
@@ -188,16 +225,23 @@ class DbService {
       throw Exception("Could not update profile.");
     }
   }
-  // ****************************************
 
+  // دالة جلب اسم المستخدم (تستخدمها ViewModels أخرى)
   Future<String?> getUserName(String uid) async {
     try {
       DocumentSnapshot doc = await _usersCollection.doc(uid).get();
-      if (doc.exists) { Map<String, dynamic> data = doc.data() as Map<String, dynamic>? ?? {}; return data['name'] as String?; }
+      if (doc.exists) {
+        Map<String, dynamic> data = doc.data() as Map<String, dynamic>? ?? {};
+        return data['name'] as String?;
+      }
       print("DbService: User profile not found for UID: $uid"); return null;
     } catch (e) { print("Error fetching user name: $e"); return null; }
   }
 
+
+  // --- دوال الحجوزات (Bookings) ---
+
+  // دالة لإنشاء حجز جديد
   Future<DocumentReference> createBooking({
     required String userId,
     required String providerId,
@@ -231,6 +275,7 @@ class DbService {
     } catch (e) { print("Error creating booking: $e"); throw Exception("Could not create booking."); }
   }
 
+  // دالة لجلب حجوزات المستخدم
   Future<List<BookingModel>> getUserBookings(String userId) async {
     try {
       print("DbService: Fetching bookings for user: $userId");
@@ -240,6 +285,7 @@ class DbService {
     } catch (e) { print("Error fetching user bookings: $e"); return []; }
   }
 
+  // دالة جلب المواعيد المحجوزة
   Future<List<String>> getBookedTimeSlots(String providerId, DateTime date) async {
     try {
       print("DbService: Fetching booked slots for provider $providerId on $date");
@@ -272,6 +318,9 @@ class DbService {
     }
   }
 
+  // --- دوال التقييمات (Reviews) ---
+
+  // دالة حفظ تقييم جديد
   Future<void> submitReview({
     required String bookingId,
     required String providerId,
@@ -301,6 +350,7 @@ class DbService {
     }
   }
 
+  // دالة تحديث حالة الحجز
   Future<void> updateBookingStatus(String bookingId, String newStatus) async {
     try {
       print("DbService: Updating booking $bookingId status to $newStatus");
@@ -314,6 +364,7 @@ class DbService {
     }
   }
 
+  // دالة جلب تقييمات المستخدم
   Future<List<ReviewModel>> getReviewsByUser(String userId, {int limit = 20}) async {
     try {
       print("DbService: Fetching reviews for user ID: $userId");
@@ -336,6 +387,7 @@ class DbService {
     }
   }
 
+  // دالة جلب تقييمات المزود
   Future<List<ReviewModel>> getReviewsForProvider(String providerId, {int limit = 5}) async {
     try {
       print("DbService: Fetching reviews for provider ID: $providerId");
@@ -358,28 +410,25 @@ class DbService {
     }
   }
 
-  // **** دالة جديدة: جلب مزود خدمة واحد باستخدام الـ ID ****
+  // دالة جلب مزود خدمة واحد بالـ ID
   Future<ServiceProvider?> getProviderById(String providerId) async {
     try {
       print("DbService: Fetching provider by ID: $providerId");
       DocumentSnapshot doc = await _providersCollection.doc(providerId).get();
-
       if (doc.exists) {
-        // استخدام الـ factory constructor الجديد اللي عملناه في ServiceProvider
-        return ServiceProvider.fromFirestore(doc);
+        return ServiceProvider.fromFirestore(doc); // استخدام الـ factory constructor
       } else {
         print("DbService: Provider not found for ID: $providerId");
-        return null; // إرجاع null إذا لم يتم العثور على المستند
+        return null;
       }
     } catch (e) {
       print("Error fetching provider by ID: $e");
-      return null; // إرجاع null عند حدوث خطأ
+      return null;
     }
   }
-  // ******************************************************
-
 
   // --- الدوال المساعدة (Helper Functions) ---
+  // (لتحويل النصوص من Firestore إلى أيقونات وألوان)
   IconData _getIconFromString(String iconName) {
     switch (iconName.toLowerCase()) {
       case 'cut': return Icons.content_cut;

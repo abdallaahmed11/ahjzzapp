@@ -11,26 +11,27 @@ class ProfileViewModel extends ChangeNotifier {
   String _userEmail = "";
   String _selectedLanguage = "English";
   bool _notificationsEnabled = true;
+  bool _isLoadingProfile = false; // (لإدارة التحميل)
 
   // --- Getters ---
   String get userName => _userName;
   String get userEmail => _userEmail;
   String get selectedLanguage => _selectedLanguage;
   bool get notificationsEnabled => _notificationsEnabled;
+  bool get isLoadingProfile => _isLoadingProfile; // (اختياري)
 
   // --- Constructor ---
   ProfileViewModel(this._authService, this._dbService) {
     // جلب بيانات المستخدم عند بدء التشغيل
-    loadUserProfile(); // <-- تم تغيير الاسم هنا
+    loadUserProfile();
   }
 
   // --- الأفعال (Actions) ---
 
-  // **** 1. تعديل: جعل الدالة عامة ****
-  // (تم تغيير الاسم من _loadUserProfile إلى loadUserProfile)
+  // **** دالة جلب بيانات المستخدم (أصبحت عامة) ****
   Future<void> loadUserProfile() async {
-    // (يمكن إضافة حالة تحميل هنا إذا أردنا)
-    // _isLoading = true; notifyListeners();
+    _isLoadingProfile = true;
+    notifyListeners(); // إظهار التحميل
 
     try {
       final user = _authService.currentUser;
@@ -48,7 +49,7 @@ class ProfileViewModel extends ChangeNotifier {
       _userName = "Error";
       _userEmail = "";
     } finally {
-      // _isLoading = false;
+      _isLoadingProfile = false;
       notifyListeners(); // تحديث الواجهة بالبيانات الجديدة
     }
   }
