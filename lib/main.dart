@@ -1,4 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +9,7 @@ import 'package:ahjizzzapp/views/signup_view.dart';
 import 'package:ahjizzzapp/views/reset_password_view.dart';
 import 'package:ahjizzzapp/views/dashboard_view.dart';
 import 'package:ahjizzzapp/views/booking_confirmation_view.dart';
+import 'package:ahjizzzapp/views/update_profile_view.dart'; // <-- 1. استيراد الشاشة الجديدة
 
 // Shared
 import 'package:ahjizzzapp/shared/app_colors.dart';
@@ -17,35 +18,25 @@ import 'package:ahjizzzapp/shared/app_colors.dart';
 import 'package:ahjizzzapp/services/auth_service.dart';
 import 'package:ahjizzzapp/services/db_service.dart';
 
-// ViewModels (Auth Flow only, others are in Dashboard)
+// ViewModels
 import 'package:ahjizzzapp/viewmodels/login_viewmodel.dart';
 import 'package:ahjizzzapp/viewmodels/signup_viewmodel.dart';
 import 'package:ahjizzzapp/viewmodels/reset_password_viewmodel.dart';
+import 'package:ahjizzzapp/viewmodels/update_profile_viewmodel.dart'; // <-- 2. استيراد الـ ViewModel الجديد
 
 // import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  try {
-    await Firebase.initializeApp(
-      // options: DefaultFirebaseOptions.currentPlatform,
-    );
-    print("Firebase initialized successfully!");
-  } catch (e) {
-    print("Error initializing Firebase: $e");
-  }
-
-  // **** Run the app wrapped in MultiProvider ****
+  await Firebase.initializeApp();
   runApp(
     MultiProvider(
       providers: [
         // --- SERVICES ---
-        // Provide services at the top level so they are available everywhere
         Provider<AuthService>(create: (_) => AuthService()),
         Provider<DbService>(create: (_) => DbService()),
 
-        // --- AUTH VIEWMODELS ---
-        // Provide ViewModels needed before the Dashboard
+        // --- VIEWMODELS (Auth Flow) ---
         ChangeNotifierProvider<LoginViewModel>(
           create: (context) => LoginViewModel(context.read<AuthService>()),
         ),
@@ -58,63 +49,62 @@ void main() async {
         ChangeNotifierProvider<ResetPasswordViewModel>(
           create: (context) => ResetPasswordViewModel(context.read<AuthService>()),
         ),
+
+        // **** 3. إضافة الـ ViewModel الجديد ****
+        // (نضيفه هنا لأنه يُستخدم خارج الداشبورد الرئيسي)
+        ChangeNotifierProvider<UpdateProfileViewModel>(
+          create: (context) => UpdateProfileViewModel(
+            context.read<AuthService>(),
+            context.read<DbService>(),
+          ),
+        ),
+        // **********************************
       ],
-      // The MyApp widget is now a child of MultiProvider
       child: MyApp(),
     ),
   );
-  // ***********************************************
 }
 
-// MyApp no longer needs to be wrapped in MultiProvider here
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    // Access AuthService provided by the MultiProvider above main()
-    final authService = context.read<AuthService>(); // Now accessible
+    final authService = context.read<AuthService>();
 
     return MaterialApp(
       title: 'Ahjiz App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData( /* ... App Theme ... */ ),
 
-      // **** Authentication State Handling ****
-      // Use StreamProvider to listen to auth changes from the provided AuthService
+      // Authentication State Handling
       home: StreamProvider<User?>.value(
-        // Read the auth service instance from the context provided by MultiProvider
         value: authService.authStateChanges,
-        initialData: authService.currentUser, // Get initial state
-        catchError: (_, err) { // Handle potential stream errors
-          print("Error in auth stream: $err");
-          return null; // Treat stream error as logged out
-        },
-        child: AuthWrapper(), // Widget that decides which screen to show
+        initialData: authService.currentUser,
+        catchError: (_, err) => null,
+        child: AuthWrapper(),
       ),
-      // ************************************
 
+      // **** 4. إضافة المسار (Route) الجديد ****
       routes: {
         '/login': (context) => LoginView(),
         '/signup': (context) => SignUpView(),
         '/reset-password': (context) => ResetPasswordView(),
         '/dashboard': (context) => DashboardView(),
         '/booking-confirmation': (context) => BookingConfirmationView(),
+        '/update-profile': (context) => UpdateProfileView(), // <-- المسار الجديد
       },
+      // *************************************
     );
   }
 }
 
-// AuthWrapper remains the same
+// (AuthWrapper widget كما هو)
 class AuthWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    // Read the user state from the StreamProvider above
     final user = Provider.of<User?>(context);
-
     if (user == null) {
-      print("AuthWrapper: User is null, showing LoginView");
       return LoginView();
     } else {
-      print("AuthWrapper: User is logged in (${user.uid}), showing DashboardView");
       return DashboardView();
     }
   }

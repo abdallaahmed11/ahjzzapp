@@ -172,6 +172,23 @@ class DbService {
       print("DbService: User profile created/updated for UID: $uid");
     } catch (e) { print("Error creating/updating user profile: $e"); throw Exception("Could not save user profile."); }
   }
+  Future<void> updateUserProfile(String uid, {required String name, String? phone}) async {
+    try {
+      Map<String, dynamic> dataToUpdate = {
+        'name': name,
+        // (يمكن إضافة حقول أخرى هنا)
+        // 'phone': phone,
+      };
+
+      await _usersCollection.doc(uid).update(dataToUpdate);
+      print("DbService: User profile updated for UID: $uid");
+
+    } catch (e) {
+      print("Error updating user profile: $e");
+      throw Exception("Could not update profile.");
+    }
+  }
+  // ****************************************
 
   Future<String?> getUserName(String uid) async {
     try {
