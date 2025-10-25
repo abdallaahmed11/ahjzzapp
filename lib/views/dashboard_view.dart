@@ -4,15 +4,15 @@ import 'package:provider/provider.dart';
 // استيراد الـ ViewModels المطلوبة
 import 'package:ahjizzzapp/viewmodels/dashboard_viewmodel.dart';
 import 'package:ahjizzzapp/viewmodels/home_viewmodel.dart';
-import 'package:ahjizzzapp/viewmodels/my_bookings_viewmodel.dart'; // ViewModel حجوزاتي
-import 'package:ahjizzzapp/viewmodels/profile_viewmodel.dart';    // ViewModel حسابي
+import 'package:ahjizzzapp/viewmodels/my_bookings_viewmodel.dart';
+import 'package:ahjizzzapp/viewmodels/profile_viewmodel.dart';
+import 'package:ahjizzzapp/viewmodels/reviews_viewmodel.dart'; // <-- 1. استيراد VM الجديد
 
 // استيراد الـ Views (الشاشات) المطلوبة
 import 'package:ahjizzzapp/views/home_view.dart';
-import 'package:ahjizzzapp/views/my_bookings_view.dart'; // واجهة حجوزاتي
-import 'package:ahjizzzapp/views/profile_view.dart';    // واجهة حسابي
-// (سنضيف واجهة التقييمات لاحقاً)
-// import 'package:ahjizzzapp/views/reviews_view.dart';
+import 'package:ahjizzzapp/views/my_bookings_view.dart';
+import 'package:ahjizzzapp/views/profile_view.dart';
+import 'package:ahjizzzapp/views/reviews_view.dart'; // <-- 2. استيراد View الجديد
 
 // استيراد ملف الألوان
 import 'package:ahjizzzapp/shared/app_colors.dart';
@@ -24,19 +24,18 @@ import 'package:ahjizzzapp/services/db_service.dart';
 class DashboardView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    // 1. استخدام MultiProvider لتوفير كل الـ ViewModels المطلوبة للشاشات داخل الداشبورد
-    // يتم توفير الخدمات (AuthService, DbService) من الـ MultiProvider الأعلى في main.dart
+    // 3. **** تحديث الـ MultiProvider ****
     return MultiProvider(
       providers: [
         // ViewModel للتحكم في التاب الحالي للداشبورد نفسه
         ChangeNotifierProvider(create: (_) => DashboardViewModel()),
 
-        // ViewModel للشاشة الرئيسية (Home) - يعتمد على DbService
+        // ViewModel للشاشة الرئيسية (Home)
         ChangeNotifierProvider(
           create: (context) => HomeViewModel(context.read<DbService>()),
         ),
 
-        // ViewModel لشاشة حجوزاتي (My Bookings) - يعتمد على DbService و AuthService
+        // ViewModel لشاشة حجوزاتي (My Bookings)
         ChangeNotifierProvider(
           create: (context) => MyBookingsViewModel(
             context.read<DbService>(),
@@ -44,54 +43,59 @@ class DashboardView extends StatelessWidget {
           ),
         ),
 
-        // ViewModel لشاشة حسابي (Profile) - يعتمد على DbService و AuthService
+        // **** إضافة ViewModel شاشة التقييمات ****
+        ChangeNotifierProvider(
+          create: (context) => ReviewsViewModel(
+            context.read<DbService>(),
+            context.read<AuthService>(),
+          ),
+        ),
+        // **********************************
+
+        // ViewModel لشاشة حسابي (Profile)
         ChangeNotifierProvider(
           create: (context) => ProfileViewModel(
             context.read<AuthService>(),
             context.read<DbService>(),
           ),
         ),
-
-        // (سنضيف ViewModel لشاشة التقييمات Reviews هنا لاحقاً)
       ],
-      // 2. استخدام Consumer لمراقبة التاب الحالي في DashboardViewModel
+      // 4. **** تحديث Consumer و قائمة screens ****
       child: Consumer<DashboardViewModel>(
         builder: (context, dashboardViewModel, child) {
 
-          // 3. قائمة الشاشات التي سيتم التنقل بينها بناءً على التاب المختار
+          // قائمة الشاشات التي سيتم التنقل بينها
           final List<Widget> screens = [
-            HomeView(),        // الشاشة الأولى
-            MyBookingsView(),  // الشاشة الثانية
-            Center(child: Text('Reviews Page (TBD)')), // شاشة وهمية مؤقتة للتقييمات
-            ProfileView(),     // الشاشة الرابعة
+            HomeView(),        // التاب 0
+            MyBookingsView(),  // التاب 1
+            ReviewsView(),     // التاب 2 (استبدال الشاشة الوهمية)
+            ProfileView(),     // التاب 3
           ];
 
-          // 4. بناء الـ Scaffold الذي يحتوي على الجسم وشريط التنقل السفلي
           return Scaffold(
-            // استخدام IndexedStack يحافظ على حالة كل شاشة (Tab) عند التنقل بينها
-            // (لا يعيد بناء الشاشة كل مرة نرجع لها)
+            // استخدام IndexedStack يحافظ على حالة كل شاشة
             body: IndexedStack(
-              index: dashboardViewModel.currentIndex, // التاب الحالي
-              children: screens, // قائمة الشاشات
+              index: dashboardViewModel.currentIndex,
+              children: screens,
             ),
             // شريط التنقل السفلي
             bottomNavigationBar: BottomNavigationBar(
-              currentIndex: dashboardViewModel.currentIndex, // تحديد التاب النشط
-              onTap: (index) => dashboardViewModel.setIndex(index), // استدعاء دالة تغيير التاب عند الضغط
+              currentIndex: dashboardViewModel.currentIndex,
+              onTap: (index) => dashboardViewModel.setIndex(index),
 
-              type: BottomNavigationBarType.fixed, // لإظهار كل الـ labels حتى لو كانوا أكثر من 3
-              selectedItemColor: kPrimaryColor,   // لون الأيقونة والنص النشط (الأخضر)
-              unselectedItemColor: Colors.grey,     // لون الأيقونة والنص غير النشط (الرمادي)
-              showUnselectedLabels: true,           // إظهار النصوص دائماً
-              selectedFontSize: 12,                // حجم خط النص النشط
-              unselectedFontSize: 12,               // حجم خط النص غير النشط
+              type: BottomNavigationBarType.fixed,
+              selectedItemColor: kPrimaryColor,
+              unselectedItemColor: Colors.grey,
+              showUnselectedLabels: true,
+              selectedFontSize: 12,
+              unselectedFontSize: 12,
 
-              // تعريف عناصر (أيقونات ونصوص) شريط التنقل
+              // عناصر شريط التنقل
               items: const [
                 BottomNavigationBarItem(
-                  icon: Icon(Icons.home_outlined),    // أيقونة غير نشطة
-                  activeIcon: Icon(Icons.home),       // أيقونة نشطة
-                  label: 'Home',                      // النص
+                  icon: Icon(Icons.home_outlined),
+                  activeIcon: Icon(Icons.home),
+                  label: 'Home',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.calendar_month_outlined),
@@ -113,6 +117,7 @@ class DashboardView extends StatelessWidget {
           );
         },
       ),
+      // ******************************************
     );
   }
 }

@@ -2,36 +2,51 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ahjizzzapp/viewmodels/rate_service_viewmodel.dart';
 import 'package:ahjizzzapp/shared/app_colors.dart';
-// import 'package:ahjizzzapp/services/db_service.dart'; // To provide DbService if needed
+import 'package:ahjizzzapp/services/db_service.dart'; // <-- استيراد
+import 'package:ahjizzzapp/services/auth_service.dart'; // <-- استيراد
 
-// Function to show the modal
-void showRateServiceModal(BuildContext context, String bookingId, String providerName) {
+// **** تعديل الدالة ****
+// أصبحت تستقبل providerId أيضاً
+void showRateServiceModal(BuildContext context, {
+  required String bookingId,
+  required String providerId, // <-- إضافة ID المزود
+  required String providerName,
+}) {
   showModalBottomSheet(
     context: context,
-    isScrollControlled: true, // Allows the modal to take up more height
+    isScrollControlled: true, // للسماح للنافذة بالارتفاع فوق الكيبورد
     shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)), // حواف دائرية
     ),
     builder: (_) {
-      // Provide the ViewModel specifically for this modal instance
+      // **** تعديل الـ Provider ****
+      // توفير الـ ViewModel مع تمرير الخدمات والبيانات اللازمة
       return ChangeNotifierProvider(
-        // create: (ctx) => RateServiceViewModel(ctx.read<DbService>(), bookingId, providerName), // Future
-        create: (ctx) => RateServiceViewModel(bookingId, providerName), // Temporary
-        child: RateServiceModalContent(), // The actual content widget
+        create: (ctx) => RateServiceViewModel(
+          dbService: ctx.read<DbService>(),     // تمرير DbService
+          authService: ctx.read<AuthService>(), // تمرير AuthService
+          bookingId: bookingId,
+          providerId: providerId, // <-- تمرير ID المزود
+          providerName: providerName,
+        ),
+        // الـ Widget الذي يعرض المحتوى
+        child: RateServiceModalContent(),
       );
+      // ----------------------------
     },
   );
 }
+// **********************
 
-// The content widget for the modal bottom sheet
+// المحتوى الفعلي للنافذة المنبثقة
 class RateServiceModalContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    // Access the ViewModel provided above
+    // قراءة الـ ViewModel الذي تم توفيره في الأعلى
     final viewModel = Provider.of<RateServiceViewModel>(context);
 
     return Padding(
-      // Adjust padding based on keyboard visibility
+      // Padding يتفاعل مع الكيبورد
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
         left: 20,
@@ -39,10 +54,10 @@ class RateServiceModalContent extends StatelessWidget {
         top: 20,
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min, // Make the modal height fit content
+        mainAxisSize: MainAxisSize.min, // لجعل ارتفاع النافذة مناسباً للمحتوى
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Title
+          // 1. العنوان
           Text(
             'Rate Your Experience',
             textAlign: TextAlign.center,
@@ -56,7 +71,7 @@ class RateServiceModalContent extends StatelessWidget {
           ),
           SizedBox(height: 20),
 
-          // Star Rating Input
+          // 2. شريط النجوم
           Center(
             child: StarRating(
               rating: viewModel.rating,
@@ -65,7 +80,7 @@ class RateServiceModalContent extends StatelessWidget {
           ),
           SizedBox(height: 20),
 
-          // Review Text Input
+          // 3. حقل كتابة التقييم
           TextField(
             controller: viewModel.reviewController,
             maxLines: 3,
@@ -83,7 +98,7 @@ class RateServiceModalContent extends StatelessWidget {
           ),
           SizedBox(height: 12),
 
-          // Error Message
+          // 4. عرض رسالة الخطأ (إذا وجدت)
           if (viewModel.errorMessage != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 8.0),
@@ -94,28 +109,26 @@ class RateServiceModalContent extends StatelessWidget {
               ),
             ),
 
-          // Submit Button
+          // 5. زر "Submit Review"
           ElevatedButton(
             onPressed: viewModel.isLoading
-                ? null
+                ? null // تعطيل الزر أثناء التحميل
                 : () async {
+              // استدعاء دالة حفظ التقييم من الـ ViewModel
               bool success = await viewModel.submitReview();
               if (success && context.mounted) {
-                Navigator.of(context).pop(); // Close the modal on success
-                // Optional: Show a success snackbar
+                Navigator.of(context).pop(); // إغلاق الـ Modal عند النجاح
+                // إظهار رسالة تأكيد للمستخدم
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Thank you for your review!')),
                 );
               }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: kPrimaryColor,
-              foregroundColor: Colors.white,
+              // (يستخدم الـ style من الـ Theme)
               padding: EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
             ),
+            // إظهار مؤشر تحميل أو نص الزر
             child: viewModel.isLoading
                 ? SizedBox(
                 height: 20,
@@ -123,14 +136,14 @@ class RateServiceModalContent extends StatelessWidget {
                 child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                 : Text('Submit Review', style: TextStyle(fontSize: 16)),
           ),
-          SizedBox(height: 20), // Padding at the bottom
+          SizedBox(height: 20), // مسافة في الأسفل
         ],
       ),
     );
   }
 }
 
-// Simple Star Rating Widget (You might use a package like flutter_rating_bar later)
+// (Widget النجوم المساعد - كما هو)
 class StarRating extends StatelessWidget {
   final double rating;
   final ValueChanged<double> onRatingChanged;

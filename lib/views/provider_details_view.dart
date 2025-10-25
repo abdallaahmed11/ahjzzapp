@@ -117,6 +117,10 @@ class ProviderDetailsView extends StatelessWidget {
               padding: const EdgeInsets.all(16.0), // هوامش حول الزر
               child: ElevatedButton(
                 onPressed: () => viewModel.proceedToBooking(context), // استدعاء دالة المتابعة
+                style: ElevatedButton.styleFrom(
+                  // (يستخدم الـ style من الـ Theme في main.dart)
+                  padding: EdgeInsets.symmetric(vertical: 14),
+                ),
                 child: Text(
                   // عرض سعر الخدمة المختارة على الزر
                   'Proceed to Book (${viewModel.selectedService!.price})',

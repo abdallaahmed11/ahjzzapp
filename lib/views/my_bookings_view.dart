@@ -3,32 +3,30 @@ import 'package:provider/provider.dart';
 import 'package:ahjizzzapp/viewmodels/my_bookings_viewmodel.dart';
 import 'package:ahjizzzapp/models/booking_model.dart';
 import 'package:ahjizzzapp/shared/app_colors.dart';
-// استيراد مكتبة تهيئة التاريخ
 import 'package:intl/intl.dart';
-// استيراد الـ Modal الخاص بالتقييم
 import 'package:ahjizzzapp/views/widgets/rate_service_modal.dart';
+// استيراد شاشة تفاصيل المزود (لأن دالة bookAgain تحتاجها)
+import 'package:ahjizzzapp/views/provider_details_view.dart';
+
 
 class MyBookingsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    // استخدام Consumer لمراقبة التغييرات في MyBookingsViewModel
     return Consumer<MyBookingsViewModel>(
       builder: (context, viewModel, child) {
-        // استخدام DefaultTabController لإدارة التابات
         return DefaultTabController(
-          length: 3, // عدد التابات (Upcoming, Completed, Cancelled)
+          length: 3,
           child: Scaffold(
             appBar: AppBar(
-              // تمكين زر الرجوع التلقائي (إذا فتحت هذه الشاشة من مكان آخر غير الداشبورد)
               automaticallyImplyLeading: false,
               title: Text('My Bookings'),
               backgroundColor: kLightBackgroundColor,
-              elevation: 1, // لإظهار خط بسيط تحت الـ AppBar
+              elevation: 1,
               bottom: TabBar(
                 indicatorColor: kPrimaryColor,
                 labelColor: kPrimaryColor,
                 unselectedLabelColor: Colors.grey[600],
-                tabs: [
+                tabs: const [
                   Tab(text: 'Upcoming'),
                   Tab(text: 'Completed'),
                   Tab(text: 'Cancelled'),
@@ -37,17 +35,35 @@ class MyBookingsView extends StatelessWidget {
             ),
             backgroundColor: kLightBackgroundColor,
             body: viewModel.isLoading
-            // إظهار مؤشر التحميل أثناء جلب البيانات
                 ? Center(child: CircularProgressIndicator(color: kPrimaryColor))
-            // عرض محتوى التابات بعد التحميل
+                : viewModel.errorMessage != null
+                ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline, color: Colors.red[700], size: 40),
+                    SizedBox(height: 10),
+                    Text(
+                      viewModel.errorMessage!,
+                      style: TextStyle(color: Colors.red[700]),
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height: 10),
+                    ElevatedButton(
+                      onPressed: viewModel.fetchBookings, // زر إعادة المحاولة
+                      child: Text("Retry"),
+                    )
+                  ],
+                ),
+              ),
+            )
                 : TabBarView(
               children: [
-                // محتوى تاب Upcoming
-                _buildBookingList(viewModel.upcomingBookings, viewModel),
-                // محتوى تاب Completed
-                _buildBookingList(viewModel.completedBookings, viewModel),
-                // محتوى تاب Cancelled
-                _buildBookingList(viewModel.cancelledBookings, viewModel),
+                _buildBookingList(context, viewModel.upcomingBookings, viewModel),
+                _buildBookingList(context, viewModel.completedBookings, viewModel),
+                _buildBookingList(context, viewModel.cancelledBookings, viewModel),
               ],
             ),
           ),
@@ -57,29 +73,29 @@ class MyBookingsView extends StatelessWidget {
   }
 
   // --- Widget لعرض قائمة الحجوزات ---
-  Widget _buildBookingList(List<BookingModel> bookings, MyBookingsViewModel viewModel) {
-    // رسالة في حالة عدم وجود حجوزات
+  Widget _buildBookingList(BuildContext context, List<BookingModel> bookings, MyBookingsViewModel viewModel) {
     if (bookings.isEmpty) {
-      return Center(child: Text('No bookings found in this category.'));
+      return Center(
+          child: Text(
+            'No bookings found in this category.',
+            style: TextStyle(color: Colors.grey[600]),
+          ));
     }
 
-    // عرض الحجوزات في قائمة قابلة للسكرول
     return ListView.builder(
       padding: EdgeInsets.all(16),
       itemCount: bookings.length,
       itemBuilder: (context, index) {
         final booking = bookings[index];
-        // بناء كرت الحجز لكل عنصر في القائمة
-        return _buildBookingCard(context, booking, viewModel); // <-- تمرير context هنا
+        return _buildBookingCard(context, booking, viewModel);
       },
     );
   }
 
-  // --- Widget لعرض كرت الحجز ---
-  Widget _buildBookingCard(BuildContext context, BookingModel booking, MyBookingsViewModel viewModel) { // <-- استقبال context
-    // تهيئة التاريخ والوقت باستخدام مكتبة intl
-    final formattedDate = DateFormat('EEE, d MMM').format(booking.dateTime); // e.g., Thu, 23 Oct
-    final formattedTime = DateFormat('h:mm a').format(booking.dateTime);     // e.g., 2:00 PM
+  // --- Widget لعرض كرت الحجز الواحد ---
+  Widget _buildBookingCard(BuildContext context, BookingModel booking, MyBookingsViewModel viewModel) {
+    final formattedDate = DateFormat('EEE, d MMM').format(booking.dateTime);
+    final formattedTime = DateFormat('h:mm a').format(booking.dateTime);
 
     return Card(
       margin: EdgeInsets.only(bottom: 16),
@@ -91,30 +107,35 @@ class MyBookingsView extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // اسم المزود والحالة (Status Badge)
-            Row(
+            Row( // السطر الأول: الاسم والحالة
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  booking.providerName,
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                Expanded(
+                  child: Text(
+                    booking.providerName,
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                // عرض شارة الحالة حسب نوع الحجز
-                if (booking.status == BookingStatus.upcoming)
+                SizedBox(width: 8),
+                // شارة الحالة
+                if (booking.status == 'upcoming')
                   _buildStatusBadge('Confirmed', Colors.green),
-                if (booking.status == BookingStatus.cancelled)
+                if (booking.status == 'cancelled')
                   _buildStatusBadge('Cancelled', Colors.red),
+                if (booking.status == 'completed')
+                  _buildStatusBadge('Completed', Colors.blue),
+                if (booking.status == 'rated')
+                  _buildStatusBadge('Rated', Colors.grey),
               ],
             ),
             SizedBox(height: 4),
-            // اسم الخدمة
-            Text(
+            Text( // اسم الخدمة
               booking.serviceName,
               style: TextStyle(color: Colors.grey[700]),
             ),
             SizedBox(height: 12),
-            // التاريخ والوقت مع أيقونات
-            Row(
+            Row( // التاريخ والوقت
               children: [
                 Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
                 SizedBox(width: 8),
@@ -126,69 +147,21 @@ class MyBookingsView extends StatelessWidget {
               ],
             ),
             SizedBox(height: 12),
-            Divider(), // خط فاصل
+            Divider(),
             SizedBox(height: 12),
-            // السعر والأزرار في الأسفل
-            Row(
+            Row( // السطر الأخير: السعر والأزرار
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center, // لمحاذاة السعر والأزرار
               children: [
-                Text(
+                Text( // السعر
                   booking.price,
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: kPrimaryColor),
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: kPrimaryColor),
                 ),
-                // عرض الأزرار المناسبة حسب حالة الحجز
-                if (booking.status == BookingStatus.upcoming)
-                  Row(
-                    children: [
-                      OutlinedButton(
-                        onPressed: () { /* TODO: Implement Reschedule logic */ },
-                        child: Text('Reschedule'),
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: Colors.grey[400]!),
-                          foregroundColor: Colors.grey[700],
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      OutlinedButton(
-                        onPressed: () => viewModel.cancelBooking(booking.id), // استدعاء دالة الإلغاء
-                        child: Text('Cancel'),
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: Colors.grey[400]!),
-                          foregroundColor: Colors.grey[700],
-                        ),
-                      ),
-                    ],
-                  ),
-                if (booking.status == BookingStatus.completed)
-                  Row(
-                    children: [
-                      OutlinedButton(
-                        // --- التعديل هنا ---
-                        onPressed: () {
-                          // إظهار الـ Modal الخاص بالتقييم عند الضغط
-                          showRateServiceModal(context, booking.id, booking.providerName);
-                        },
-                        // ------------------
-                        child: Text('Rate Service'),
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: Colors.grey[400]!),
-                          foregroundColor: Colors.grey[700],
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      ElevatedButton(
-                        onPressed: () { /* TODO: Implement Book Again logic */ },
-                        child: Text('Book Again'),
-                        style: ElevatedButton.styleFrom(backgroundColor: kPrimaryColor, foregroundColor: Colors.white),
-                      ),
-                    ],
-                  ),
-                if (booking.status == BookingStatus.cancelled)
-                  ElevatedButton(
-                    onPressed: () { /* TODO: Implement Book Again logic */ },
-                    child: Text('Book Again'),
-                    style: ElevatedButton.styleFrom(backgroundColor: kPrimaryColor, foregroundColor: Colors.white),
-                  ),
+                // أزرار الإجراءات
+                _buildActionButtons(context, booking, viewModel),
               ],
             )
           ],
@@ -197,7 +170,88 @@ class MyBookingsView extends StatelessWidget {
     );
   }
 
-  // --- Widget لـ Status Badge ---
+  // --- Widget لعرض أزرار الإجراءات (مُعدل) ---
+  Widget _buildActionButtons(BuildContext context, BookingModel booking, MyBookingsViewModel viewModel) {
+
+    // 1. الحجز القادم (Upcoming)
+    if (booking.status == 'upcoming') {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          OutlinedButton(
+            onPressed: () { /* TODO: Implement Reschedule logic */ },
+            child: Text('Reschedule'),
+          ),
+          SizedBox(width: 8),
+          // زر الإلغاء الفعّال
+          OutlinedButton(
+            onPressed: () {
+              // (يمكن إضافة تأكيد هنا)
+              viewModel.cancelBooking(booking.id); // استدعاء دالة الإلغاء
+            },
+            child: Text('Cancel'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.red[700],
+              side: BorderSide(color: Colors.red[200]!),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // 2. الحجز المكتمل (Completed - لم يُقيّم بعد)
+    else if (booking.status == 'completed') {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // زر التقييم الفعّال
+          OutlinedButton(
+            onPressed: () {
+              // إظهار الـ Modal وتمرير البيانات اللازمة
+              showRateServiceModal(
+                context,
+                bookingId: booking.id,
+                providerId: booking.providerId, // <-- تمرير الـ ID الحقيقي
+                providerName: booking.providerName,
+              );
+            },
+            child: Text('Rate Service'),
+          ),
+          SizedBox(width: 8),
+          // **** زر "احجز مرة أخرى" (الجديد) ****
+          ElevatedButton(
+            onPressed: () {
+              // استدعاء الدالة الجديدة في الـ ViewModel
+              viewModel.bookAgain(context, booking);
+            },
+            child: Text('Book Again'),
+          ),
+          // **********************************
+        ],
+      );
+    }
+
+    // 3. الحجز الملغى (Cancelled) أو المقيم (Rated)
+    else if (booking.status == 'cancelled' || booking.status == 'rated') {
+      // يعرض "Book Again" فقط
+      // **** زر "احجز مرة أخرى" (الجديد) ****
+      return ElevatedButton(
+        onPressed: () {
+          // استدعاء الدالة الجديدة في الـ ViewModel
+          viewModel.bookAgain(context, booking);
+        },
+        child: Text('Book Again'),
+      );
+      // **********************************
+    }
+
+    // حالة غير معروفة
+    else {
+      return SizedBox.shrink(); // عنصر فارغ
+    }
+  }
+
+  // --- Widget لشارة الحالة (Status Badge) ---
   Widget _buildStatusBadge(String text, Color color) {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -207,7 +261,8 @@ class MyBookingsView extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w500),
+        style: TextStyle(
+            color: color, fontSize: 12, fontWeight: FontWeight.w500),
       ),
     );
   }

@@ -1,109 +1,161 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart'; // For date formatting
-// Import the models needed
+import 'package:intl/intl.dart'; // لتهيئة شكل التاريخ
+// استيراد الموديلات التي سنستقبلها
 import 'package:ahjizzzapp/models/service_provider.dart';
-import 'package:ahjizzzapp/viewmodels/provider_details_viewmodel.dart'; // Contains ProviderServiceModel
-// import 'package:ahjizzzapp/services/db_service.dart'; // To fetch available slots
+import 'package:ahjizzzapp/viewmodels/provider_details_viewmodel.dart'; // يحتوي على ProviderServiceModel
+// استيراد الشاشة التالية للانتقال إليها
 import 'package:ahjizzzapp/views/booking_payment_view.dart';
+// استيراد خدمة قاعدة البيانات
+import 'package:ahjizzzapp/services/db_service.dart';
+
 class TimeSelectionViewModel extends ChangeNotifier {
-  // final DbService _dbService; // To fetch real data
+  // --- الخدمات والبيانات المستلمة ---
+  final DbService _dbService; // خدمة قاعدة البيانات
   final ServiceProvider provider;
   final ProviderServiceModel service;
 
-  bool _isLoading = false;
-  List<DateTime> _availableDates = []; // Dates for the next week, for example
-  List<String> _availableTimes = []; // Time slots for the selected date
-  DateTime? _selectedDate;
-  String? _selectedTime;
+  // --- (الحالة) State ---
+  bool _isLoading = true; // البدء بحالة التحميل
+  List<DateTime> _availableDates = []; // قائمة التواريخ (مثال: الـ 7 أيام القادمة)
+  List<String> _availableTimes = []; // قائمة المواعيد المتاحة (المفلترة)
+  DateTime? _selectedDate; // التاريخ الذي اختاره المستخدم
+  String? _selectedTime;   // الوقت الذي اختاره المستخدم
+  String? _errorMessage; // لعرض الأخطاء
 
+  // --- (Getters) للقراءة الآمنة ---
   bool get isLoading => _isLoading;
   List<DateTime> get availableDates => _availableDates;
   List<String> get availableTimes => _availableTimes;
   DateTime? get selectedDate => _selectedDate;
   String? get selectedTime => _selectedTime;
+  String? get errorMessage => _errorMessage;
 
-  // TimeSelectionViewModel(this._dbService, this.provider, this.service) { // Future constructor
-  TimeSelectionViewModel(this.provider, this.service) { // Temporary constructor
-    _generateAvailableDates();
-    // Select the first date by default and fetch its times
+  // --- Constructor ---
+  // يستقبل DbService والبيانات المطلوبة
+  TimeSelectionViewModel({
+    required DbService dbService,
+    required this.provider,
+    required this.service,
+  }) : _dbService = dbService {
+    // عند بدء التشغيل، قم بإنشاء التواريخ
+    _generateMockDates();
     if (_availableDates.isNotEmpty) {
+      // وجلب المواعيد تلقائياً لأول يوم
       selectDate(_availableDates.first);
+    } else {
+      _isLoading = false; // لا يوجد أيام لعرضها
     }
   }
 
-  // Generate dates for the next 7 days (example)
-  void _generateAvailableDates() {
+  // --- دوال اللوجيك ---
+
+  // دالة لإنشاء قائمة تواريخ (مثال: الـ 7 أيام القادمة)
+  void _generateMockDates() {
     final now = DateTime.now();
     _availableDates = List.generate(7, (index) => now.add(Duration(days: index)));
-    notifyListeners();
   }
 
-  // Fetch available time slots for a given date
-  Future<void> fetchAvailableTimes(DateTime date) async {
-    _isLoading = true;
-    _availableTimes = []; // Clear previous times
-    _selectedTime = null; // Reset time selection
-    notifyListeners();
-
-    // TODO: Replace with real data fetching from Firestore based on provider, service, and date
-    // _availableTimes = await _dbService.getAvailableTimes(provider.id, service.id, date);
-
-    // (Temporary mock data for time slots - pretending some are booked)
-    await Future.delayed(Duration(milliseconds: 300));
-    // Example: Generate slots from 9 AM to 5 PM, every 30 minutes
-    List<String> allSlots = [];
+  // دالة لإنشاء قائمة (كل) المواعيد الممكنة في اليوم
+  List<String> _generateAllPossibleSlots(DateTime date) {
+    // (يمكن تعديل هذه القائمة لاحقاً لتعتمد على مواعيد عمل المزود)
+    List<String> slots = [];
+    // (مثال: من 9 صباحاً إلى 5 مساءً)
     DateTime startTime = DateTime(date.year, date.month, date.day, 9, 0); // 9:00 AM
     DateTime endTime = DateTime(date.year, date.month, date.day, 17, 0); // 5:00 PM
+
+    // عدم عرض المواعيد الماضية في اليوم الحالي
+    DateTime now = DateTime.now();
+    if (date.year == now.year && date.month == now.month && date.day == now.day) {
+      // إذا كان اليوم هو اليوم الحالي، تأكد من أن وقت البدء ليس في الماضي
+      if (now.isAfter(startTime)) {
+        // ابدأ من أقرب 30 دقيقة قادمة
+        int minutesToAdd = 30 - now.minute % 30;
+        startTime = now.add(Duration(minutes: minutesToAdd));
+        // تأكد من أن الساعة لم تتجاوز 9 (للتأكد من التقريب الصحيح)
+        startTime = DateTime(date.year, date.month, date.day, startTime.hour, startTime.minute);
+      }
+    }
+
     while (startTime.isBefore(endTime)) {
-      allSlots.add(DateFormat('h:mm a').format(startTime)); // Format as "9:00 AM"
-      startTime = startTime.add(Duration(minutes: 30));
+      slots.add(DateFormat('h:mm a').format(startTime)); // Format as "9:00 AM"
+      startTime = startTime.add(Duration(minutes: 30)); // زيادة 30 دقيقة
     }
-
-    // Simulate some booked slots based on the date
-    if (date.day % 2 == 0) { // Even days have fewer slots
-      allSlots.removeRange(2, 5);
-      allSlots.remove("1:00 PM");
-    } else { // Odd days
-      allSlots.remove("11:30 AM");
-    }
-
-    _availableTimes = allSlots;
-    _isLoading = false;
-    notifyListeners();
+    return slots;
   }
 
-  // Select a date
+  // --- دالة جلب المواعيد المتاحة (مُحدثة) ---
+  Future<void> _fetchAvailableTimesFor(DateTime date) async {
+    _isLoading = true;
+    _availableTimes = []; // تفريغ القائمة القديمة
+    _selectedTime = null; // إلغاء اختيار الوقت
+    _errorMessage = null; // مسح الأخطاء
+    notifyListeners(); // إظهار التحميل
+
+    try {
+      // 1. جلب قائمة المواعيد المحجوزة من DbService
+      List<String> bookedSlots =
+      await _dbService.getBookedTimeSlots(provider.id, date);
+
+      // 2. إنشاء القائمة الكاملة لكل المواعيد الممكنة لهذا اليوم
+      List<String> allSlots = _generateAllPossibleSlots(date);
+
+      // 3. فلترة القائمة: إزالة المواعيد المحجوزة
+      _availableTimes = allSlots.where((slot) {
+        // الاحتفاظ بالـ slot فقط إذا لم يكن موجوداً في bookedSlots
+        return !bookedSlots.contains(slot);
+      }).toList();
+
+      if (_availableTimes.isEmpty) {
+        _errorMessage = "No available slots for this day."; // رسالة إذا كانت كل المواعيد محجوزة
+      }
+
+    } catch (e) {
+      print("Error fetching available times: $e");
+      _errorMessage = "Could not load time slots."; // رسالة خطأ عامة
+      _availableTimes = []; // إرجاع قائمة فارغة عند الخطأ
+    } finally {
+      _isLoading = false;
+      notifyListeners(); // إخفاء التحميل وعرض المواعيد المتاحة
+    }
+  }
+  // ------------------------------------
+
+  // دالة عند اختيار تاريخ (مُحدثة)
   void selectDate(DateTime date) {
-    if (_selectedDate != date) {
+    // التأكد من أن التاريخ مختلف أو أن المواعيد لم تُجلب بعد
+    // (نقارن اليوم فقط)
+    if (_selectedDate == null ||
+        _selectedDate!.day != date.day ||
+        _selectedDate!.month != date.month ||
+        _selectedDate!.year != date.year) {
+
       _selectedDate = date;
-      fetchAvailableTimes(date); // Fetch times for the newly selected date
-      notifyListeners();
+      // استدعاء الدالة الحقيقية لجلب المواعيد المتاحة لهذا اليوم
+      _fetchAvailableTimesFor(date);
+      // (notifyListeners() ستُستدعى داخل _fetchAvailableTimesFor)
     }
   }
 
-  // Select a time slot
+  // دالة عند اختيار وقت (كما هي)
   void selectTime(String time) {
     _selectedTime = time;
-    notifyListeners();
+    notifyListeners(); // تحديث الواجهة (لإظهار زر التأكيد)
   }
 
-  // Proceed to the next step (Booking & Payment)
-// (Inside TimeSelectionViewModel)
+  // دالة الانتقال للخطوة التالية (شاشة الدفع) (كما هي)
   void confirmTime(BuildContext context) {
     if (_selectedDate != null && _selectedTime != null) {
-      print("Confirming Time: Date=${DateFormat('yyyy-MM-dd').format(_selectedDate!)}, Time=$_selectedTime");
-      // --- UPDATE NAVIGATION ---
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => BookingPaymentView(
-            provider: provider,      // Pass provider
-            service: service,        // Pass service
-            selectedDate: _selectedDate!, // Pass selected date
-            selectedTime: _selectedTime!, // Pass selected time
+            provider: provider,
+            service: service,
+            selectedDate: _selectedDate!,
+            selectedTime: _selectedTime!,
           ),
+          settings: RouteSettings(name: '/booking-payment'),
         ),
       );
-      // -----------------------
     }
   }
 }

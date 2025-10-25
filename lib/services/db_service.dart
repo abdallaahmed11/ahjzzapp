@@ -1,12 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 // استيراد كل الموديلات المطلوبة
 import 'package:ahjizzzapp/models/quick_category.dart';
 import 'package:ahjizzzapp/models/service_provider.dart';
 import 'package:ahjizzzapp/models/top_rated_provider.dart';
 import 'package:ahjizzzapp/models/booking_model.dart';
-// استيراد الموديل الجديد للخدمة
-// (ملاحظة: نقلنا تعريف ProviderServiceModel لملف الـ ViewModel الخاص به لتقليل الاعتماديات)
+import 'package:ahjizzzapp/models/review_model.dart';
 import 'package:ahjizzzapp/viewmodels/provider_details_viewmodel.dart';
 
 class DbService {
@@ -19,10 +19,11 @@ class DbService {
   FirebaseFirestore.instance.collection('bookings');
   final CollectionReference _usersCollection =
   FirebaseFirestore.instance.collection('users');
+  final CollectionReference _reviewsCollection =
+  FirebaseFirestore.instance.collection('reviews');
 
-  // --- دوال جلب البيانات (لشاشة Home) ---
 
-  // دالة جلب الفئات
+  // --- (كل الدوال السابقة كما هي) ---
   Future<List<QuickCategory>> getCategories() async {
     try {
       print("DbService: Fetching categories from Firestore...");
@@ -44,7 +45,6 @@ class DbService {
     }
   }
 
-  // دالة جلب الخدمات القريبة
   Future<List<ServiceProvider>> getServicesNearYou({int limit = 5}) async {
     try {
       print("DbService: Fetching nearby services from Firestore...");
@@ -71,7 +71,6 @@ class DbService {
     }
   }
 
-  // دالة جلب الأعلى تقييماً
   Future<List<TopRatedProvider>> getTopRatedProviders({int limit = 3}) async {
     try {
       print("DbService: Fetching top rated providers from Firestore...");
@@ -99,7 +98,6 @@ class DbService {
     }
   }
 
-  // دالة جلب المزودين حسب الفئة
   Future<List<ServiceProvider>> getProvidersByCategory(String categoryName, {String? sortBy, int limit = 10}) async {
     try {
       print("DbService: Fetching providers for category: $categoryName");
@@ -138,22 +136,17 @@ class DbService {
     }
   }
 
-  // **** دالة جديدة: جلب الخدمات الخاصة بمزود خدمة معين ****
   Future<List<ProviderServiceModel>> getServicesForProvider(String providerId) async {
     try {
       print("DbService: Fetching services for provider ID: $providerId");
-
-      // 1. الوصول للمجموعة الفرعية "services" جوه مستند المزود
       QuerySnapshot snapshot = await _providersCollection
-          .doc(providerId) // تحديد مستند المزود
-          .collection('services') // الدخول للمجموعة الفرعية "services"
-          .orderBy('name') // (اختياري: ترتيب الخدمات أبجديًا)
+          .doc(providerId)
+          .collection('services')
+          .orderBy('name')
           .get();
 
-      // 2. تحويل المستندات إلى قائمة ProviderServiceModel
       List<ProviderServiceModel> services = snapshot.docs.map((doc) {
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>? ?? {};
-        // استخدام الموديل المستورد من ProviderDetailsViewModel
         return ProviderServiceModel(
           id: doc.id,
           name: data['name'] ?? 'Unnamed Service',
@@ -163,17 +156,14 @@ class DbService {
       }).toList();
 
       print("DbService: Fetched ${services.length} services for provider $providerId.");
-      return services; // إرجاع قائمة الخدمات
+      return services;
 
     } catch (e) {
       print("Error fetching services for provider $providerId: $e");
-      return []; // إرجاع قائمة فارغة عند حدوث خطأ
+      return [];
     }
   }
-  // ******************************************************
 
-
-  // --- دوال المستخدمين (User Profile) ---
   Future<void> createUserProfile({required String uid, required String name, required String email}) async {
     try {
       await _usersCollection.doc(uid).set({
@@ -182,6 +172,7 @@ class DbService {
       print("DbService: User profile created/updated for UID: $uid");
     } catch (e) { print("Error creating/updating user profile: $e"); throw Exception("Could not save user profile."); }
   }
+
   Future<String?> getUserName(String uid) async {
     try {
       DocumentSnapshot doc = await _usersCollection.doc(uid).get();
@@ -190,20 +181,39 @@ class DbService {
     } catch (e) { print("Error fetching user name: $e"); return null; }
   }
 
-  // --- دوال الحجوزات (Bookings) ---
-  Future<DocumentReference> createBooking({ required String userId, required String providerId, required String providerName, required String serviceId, required String serviceName, required DateTime dateTime, required String price, String? notes, required String paymentMethod, String? discountCode, String status = 'upcoming', }) async {
+  Future<DocumentReference> createBooking({
+    required String userId,
+    required String providerId,
+    required String providerName,
+    required String serviceId,
+    required String serviceName,
+    required DateTime dateTime,
+    required String price,
+    String? notes,
+    required String paymentMethod,
+    String? discountCode,
+    String status = 'upcoming',
+  }) async {
     try {
       print("DbService: Creating booking in Firestore...");
       DocumentReference docRef = await _bookingsCollection.add({
-        'userId': userId, 'providerId': providerId, 'providerName': providerName,
-        'serviceId': serviceId, 'serviceName': serviceName,
-        'bookingTime': Timestamp.fromDate(dateTime), 'price': price, 'status': status,
-        'notes': notes, 'paymentMethod': paymentMethod, 'discountCode': discountCode,
+        'userId': userId,
+        'providerId': providerId,
+        'providerName': providerName,
+        'serviceId': serviceId,
+        'serviceName': serviceName,
+        'bookingTime': Timestamp.fromDate(dateTime),
+        'price': price,
+        'status': status,
+        'notes': notes,
+        'paymentMethod': paymentMethod,
+        'discountCode': discountCode,
         'createdAt': FieldValue.serverTimestamp(),
       });
       print("DbService: Booking created successfully with ID: ${docRef.id}"); return docRef;
     } catch (e) { print("Error creating booking: $e"); throw Exception("Could not create booking."); }
   }
+
   Future<List<BookingModel>> getUserBookings(String userId) async {
     try {
       print("DbService: Fetching bookings for user: $userId");
@@ -212,7 +222,144 @@ class DbService {
       print("DbService: Fetched ${bookings.length} bookings for user $userId."); return bookings;
     } catch (e) { print("Error fetching user bookings: $e"); return []; }
   }
-  // TODO: Add function to update booking status
+
+  Future<List<String>> getBookedTimeSlots(String providerId, DateTime date) async {
+    try {
+      print("DbService: Fetching booked slots for provider $providerId on $date");
+      final DateTime startOfDay = DateTime(date.year, date.month, date.day);
+      final DateTime endOfDay = startOfDay.add(Duration(days: 1));
+
+      QuerySnapshot snapshot = await _bookingsCollection
+          .where('providerId', isEqualTo: providerId)
+          .where('status', isEqualTo: 'upcoming')
+          .where('bookingTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+          .where('bookingTime', isLessThan: Timestamp.fromDate(endOfDay))
+          .get();
+
+      List<String> bookedSlots = snapshot.docs.map((doc) {
+        Map<String, dynamic> data = doc.data() as Map<String, dynamic>? ?? {};
+        Timestamp bookingTimestamp = data['bookingTime'] as Timestamp;
+        DateTime bookingTime = bookingTimestamp.toDate();
+        return DateFormat('h:mm a').format(bookingTime);
+      }).toList();
+
+      print("DbService: Found ${bookedSlots.length} booked slots: $bookedSlots");
+      return bookedSlots;
+
+    } catch (e) {
+      print("Error fetching booked slots: $e");
+      if (e is FirebaseException && e.code == 'failed-precondition') {
+        print("Firestore Index potentially missing for getBookedTimeSlots query. Check Firebase console for a link to create it.");
+      }
+      return [];
+    }
+  }
+
+  Future<void> submitReview({
+    required String bookingId,
+    required String providerId,
+    required String providerName,
+    required String userId,
+    required String userName,
+    required double rating,
+    required String reviewText,
+  }) async {
+    try {
+      print("DbService: Submitting review for booking: $bookingId");
+      await _reviewsCollection.add({
+        'bookingId': bookingId,
+        'providerId': providerId,
+        'providerName': providerName,
+        'userId': userId,
+        'userName': userName,
+        'rating': rating,
+        'reviewText': reviewText,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      print("DbService: Review submitted successfully.");
+      // TODO: (Advanced) Update average rating on serviceProvider document
+    } catch (e) {
+      print("Error submitting review: $e");
+      throw Exception("Could not submit review.");
+    }
+  }
+
+  Future<void> updateBookingStatus(String bookingId, String newStatus) async {
+    try {
+      print("DbService: Updating booking $bookingId status to $newStatus");
+      await _bookingsCollection.doc(bookingId).update({
+        'status': newStatus,
+      });
+      print("DbService: Booking status updated.");
+    } catch (e) {
+      print("Error updating booking status: $e");
+      throw Exception("Could not update booking status.");
+    }
+  }
+
+  Future<List<ReviewModel>> getReviewsByUser(String userId, {int limit = 20}) async {
+    try {
+      print("DbService: Fetching reviews for user ID: $userId");
+      QuerySnapshot snapshot = await _reviewsCollection
+          .where('userId', isEqualTo: userId)
+          .orderBy('createdAt', descending: true)
+          .limit(limit)
+          .get();
+      List<ReviewModel> reviews = snapshot.docs
+          .map((doc) => ReviewModel.fromFirestore(doc))
+          .toList();
+      print("DbService: Fetched ${reviews.length} reviews for user $userId.");
+      return reviews;
+    } catch (e) {
+      print("Error fetching reviews for user $userId: $e");
+      if (e is FirebaseException && e.code == 'failed-precondition') {
+        print("Firestore Index potentially missing for getReviewsByUser query. Check Firebase console for a link to create it.");
+      }
+      return [];
+    }
+  }
+
+  Future<List<ReviewModel>> getReviewsForProvider(String providerId, {int limit = 5}) async {
+    try {
+      print("DbService: Fetching reviews for provider ID: $providerId");
+      QuerySnapshot snapshot = await _reviewsCollection
+          .where('providerId', isEqualTo: providerId)
+          .orderBy('createdAt', descending: true)
+          .limit(limit)
+          .get();
+      List<ReviewModel> reviews = snapshot.docs
+          .map((doc) => ReviewModel.fromFirestore(doc))
+          .toList();
+      print("DbService: Fetched ${reviews.length} reviews for provider $providerId.");
+      return reviews;
+    } catch (e) {
+      print("Error fetching reviews for provider $providerId: $e");
+      if (e is FirebaseException && e.code == 'failed-precondition') {
+        print("Firestore Index potentially missing for getReviewsForProvider query. Check Firebase console for a link to create it.");
+      }
+      return [];
+    }
+  }
+
+  // **** دالة جديدة: جلب مزود خدمة واحد باستخدام الـ ID ****
+  Future<ServiceProvider?> getProviderById(String providerId) async {
+    try {
+      print("DbService: Fetching provider by ID: $providerId");
+      DocumentSnapshot doc = await _providersCollection.doc(providerId).get();
+
+      if (doc.exists) {
+        // استخدام الـ factory constructor الجديد اللي عملناه في ServiceProvider
+        return ServiceProvider.fromFirestore(doc);
+      } else {
+        print("DbService: Provider not found for ID: $providerId");
+        return null; // إرجاع null إذا لم يتم العثور على المستند
+      }
+    } catch (e) {
+      print("Error fetching provider by ID: $e");
+      return null; // إرجاع null عند حدوث خطأ
+    }
+  }
+  // ******************************************************
 
 
   // --- الدوال المساعدة (Helper Functions) ---
