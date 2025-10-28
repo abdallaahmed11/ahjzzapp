@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ahjizzzapp/viewmodels/login_viewmodel.dart';
 import 'package:ahjizzzapp/shared/app_colors.dart';
-import 'package:easy_localization/easy_localization.dart'; // <-- 1. استيراد المكتبة
+import 'package:easy_localization/easy_localization.dart'; // (استيراد الترجمة)
 
 class LoginView extends StatelessWidget {
   @override
@@ -18,18 +18,18 @@ class LoginView extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildLogo(context), // تمرير context للوجو
+              _buildLogo(context),
               SizedBox(height: 32),
 
-              // **** 2. ترجمة النصوص ****
+              // (النصوص المترجمة)
               Text(
-                "login_title".tr(), // "Welcome Back!"
+                "login_title".tr(),
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 8),
               Text(
-                "login_subtitle".tr(), // "Login to continue..."
+                "login_subtitle".tr(),
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 16, color: Colors.grey[600]),
               ),
@@ -38,60 +38,76 @@ class LoginView extends StatelessWidget {
               // (الحقول)
               _buildTextField(
                 controller: viewModel.emailController,
-                label: "login_email_label".tr(), // "Email"
+                label: "login_email_label".tr(),
                 hint: 'your.email@example.com',
                 keyboardType: TextInputType.emailAddress,
               ),
               SizedBox(height: 20),
               _buildTextField(
                 controller: viewModel.passwordController,
-                label: "login_password_label".tr(), // "Password"
+                label: "login_password_label".tr(),
                 hint: 'Enter your password',
                 isPassword: true,
               ),
               SizedBox(height: 12),
 
-              // رابط "نسيت كلمة المرور"
+              // (رسالة الخطأ لو موجودة)
+              if (viewModel.errorMessage != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10.0),
+                  child: Text(
+                    viewModel.errorMessage!, // (رسالة الخطأ مش محتاجة ترجمة)
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.red, fontSize: 14),
+                  ),
+                ),
+
+              // (رابط "نسيت كلمة المرور")
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: () => Navigator.of(context).pushNamed('/reset-password'),
                   child: Text(
-                    "login_forgot_password".tr(), // "Forgot Password?"
+                    "login_forgot_password".tr(),
                     style: TextStyle(color: kPrimaryColor),
                   ),
                 ),
               ),
               SizedBox(height: 20),
 
-              // زر تسجيل الدخول
+              // **** 1. التعديل هنا (زر تسجيل الدخول) ****
               ElevatedButton(
                 onPressed: viewModel.isLoading
                     ? null
                     : () async {
-                  bool success = await viewModel.login();
-                  if (success && context.mounted) {
-                    Navigator.of(context).pushReplacementNamed('/dashboard');
-                  }
+                  // فقط قم باستدعاء دالة اللوجين
+                  // لا تقم بأي تنقل (Navigation) من هنا
+                  await viewModel.login();
+                  // الـ AuthWrapper سيتكفل بالباقي
                 },
+                style: ElevatedButton.styleFrom(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                ),
                 child: viewModel.isLoading
                     ? CircularProgressIndicator(color: Colors.white)
                     : Text(
-                  "login_button".tr(), // "Login"
+                  "login_button".tr(),
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
+              // ***************************************
+
               SizedBox(height: 24),
 
-              // رابط إنشاء حساب
+              // (رابط إنشاء حساب)
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text("login_no_account".tr(), style: TextStyle(color: Colors.grey[600])), // "Don't have an account?"
+                  Text("login_no_account".tr(), style: TextStyle(color: Colors.grey[600])),
                   TextButton(
                     onPressed: () => Navigator.of(context).pushNamed('/signup'),
                     child: Text(
-                      "login_signup".tr(), // "Sign Up"
+                      "login_signup".tr(),
                       style: TextStyle(
                         color: kPrimaryColor,
                         fontWeight: FontWeight.bold,
@@ -100,7 +116,6 @@ class LoginView extends StatelessWidget {
                   ),
                 ],
               ),
-              // ************************
             ],
           ),
         ),
@@ -108,7 +123,7 @@ class LoginView extends StatelessWidget {
     );
   }
 
-  // (دالة اللوجو - مُعدلة لتترجم اسم التطبيق)
+  // (دالة اللوجو - كما هي)
   Widget _buildLogo(BuildContext context) {
     return Column(
       children: [
@@ -122,7 +137,7 @@ class LoginView extends StatelessWidget {
         ),
         SizedBox(height: 12),
         Text(
-          "app_title".tr(), // <-- ترجمة اسم التطبيق
+          "app_title".tr(), // (اسم التطبيق مترجم)
           style: TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.bold,
@@ -145,7 +160,7 @@ class LoginView extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          label, // (النص هنا جاي مترجم جاهز)
+          label, // (النص جاي مترجم جاهز)
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
         ),
         SizedBox(height: 8),
@@ -154,7 +169,7 @@ class LoginView extends StatelessWidget {
           obscureText: isPassword,
           keyboardType: keyboardType,
           decoration: InputDecoration(
-            hintText: hint, // (الهنت ممكن نترجمه برضه لو حابين)
+            hintText: hint,
             filled: true,
             fillColor: Colors.white,
             border: OutlineInputBorder(

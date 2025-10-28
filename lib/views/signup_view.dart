@@ -46,7 +46,7 @@ class SignUpView extends StatelessWidget {
                   _buildTextField(
                     controller: viewModel.nameController,
                     label: 'Full Name', // [cite: 14]
-                    hint: 'Ahmed Hassan', // [cite: 15]
+                    hint: 'Abdallah Ahmed', // [cite: 15]
                   ),
                   SizedBox(height: 20),
                   _buildTextField(
