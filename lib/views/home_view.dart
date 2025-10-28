@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:easy_localization/easy_localization.dart'; // استيراد المكتبة
 import 'package:ahjizzzapp/viewmodels/home_viewmodel.dart';
 import 'package:ahjizzzapp/shared/app_colors.dart';
 import 'package:ahjizzzapp/views/notifications_view.dart';
@@ -7,7 +8,6 @@ import 'package:ahjizzzapp/views/service_list_view.dart';
 import 'package:ahjizzzapp/views/provider_details_view.dart';
 import 'package:ahjizzzapp/models/service_provider.dart';
 import 'package:ahjizzzapp/models/top_rated_provider.dart';
-import 'package:ahjizzzapp/views/search_view.dart'; // <-- 1. استيراد شاشة البحث
 
 class HomeView extends StatelessWidget {
   @override
@@ -21,25 +21,26 @@ class HomeView extends StatelessWidget {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // **** 1. السطر المُعدل ****
             Text(
-              'Hello, ${viewModel.userName}!',
+              // استخدام namedArgs لتمرير الاسم للمتغير {name}
+              "home_hello".tr(namedArgs: {'name': viewModel.userName}),
               style: TextStyle(
                   color: Colors.black,
                   fontWeight: FontWeight.bold,
                   fontSize: 20),
             ),
+            // ************************
             Text(
-              'What service do you need today?',
+              "home_subtitle".tr(), // "What service do you need...?"
               style: TextStyle(color: Colors.grey[600], fontSize: 14),
             ),
           ],
         ),
         actions: [
-          // (زر البحث في الـ AppBar أصبح غير ضروري الآن، لكن يمكن تركه)
           IconButton(
             icon: Icon(Icons.search, color: Colors.grey[700]),
             onPressed: () {
-              // الانتقال لشاشة البحث
               Navigator.of(context).pushNamed('/search');
             },
           ),
@@ -66,16 +67,15 @@ class HomeView extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // قسم البحث والفلاتر (تم تمرير viewModel)
               _buildSearchAndFilters(context, viewModel),
 
-              _buildSectionHeader(context, 'Services Near You', 'See All'),
+              _buildSectionHeader(context, "home_section_nearby".tr(), "home_see_all".tr()),
               _buildServicesNearYouList(context, viewModel),
 
-              _buildSectionHeader(context, 'Categories', null),
+              _buildSectionHeader(context, "home_section_categories".tr(), null),
               _buildCategoriesList(context, viewModel),
 
-              _buildSectionHeader(context, 'Top Rated in Your Area', null),
+              _buildSectionHeader(context, "home_section_top_rated".tr(), null),
               _buildTopRatedList(context, viewModel),
 
               _buildPromoBanner(context),
@@ -88,23 +88,20 @@ class HomeView extends StatelessWidget {
 
   // --- (دوال مساعدة لتقسيم الواجهة) ---
 
-  // **** دالة البحث والفلاتر (مُعدلة لتشغيل شاشة البحث) ****
   Widget _buildSearchAndFilters(BuildContext context, HomeViewModel viewModel) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
         children: [
-          // **** 2. جعل شريط البحث قابل للضغط ****
           GestureDetector(
             onTap: () {
-              // الانتقال لشاشة البحث عند الضغط
               Navigator.of(context).pushNamed('/search');
             },
-            child: AbsorbPointer( // لمنع الـ TextField من استقبال الضغطات
+            child: AbsorbPointer(
               child: TextField(
-                enabled: false, // تعطيل الـ TextField
+                enabled: false,
                 decoration: InputDecoration(
-                  hintText: 'Search for services...',
+                  hintText: "home_search_hint".tr(), // "Search for services..."
                   prefixIcon: Icon(Icons.search, color: Colors.grey),
                   suffixIcon: Icon(Icons.filter_list, color: kPrimaryColor),
                   filled: true,
@@ -113,7 +110,6 @@ class HomeView extends StatelessWidget {
                     borderRadius: BorderRadius.circular(30),
                     borderSide: BorderSide.none,
                   ),
-                  // (تأكد من تعطيل الإطار عند عدم التفعيل)
                   disabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30),
                     borderSide: BorderSide.none,
@@ -122,20 +118,18 @@ class HomeView extends StatelessWidget {
               ),
             ),
           ),
-          // ****************************************
           SizedBox(height: 12),
           Row(
             children: [
-              _buildCityFilterButton(context, viewModel), // (فلتر المدينة كما هو)
+              _buildCityFilterButton(context, viewModel), // (فلتر المدينة)
               SizedBox(width: 10),
-              _buildFilterChip(context, Icons.calendar_today, 'Today', false), // (فلتر التاريخ كما هو)
+              _buildFilterChip(context, Icons.calendar_today, "home_filter_date".tr(), false), // "Today"
             ],
           )
         ],
       ),
     );
   }
-  // *******************************************
 
   // (دالة الفلتر العادية)
   Widget _buildFilterChip(BuildContext context, IconData icon, String label, bool isActive) {
@@ -223,7 +217,10 @@ class HomeView extends StatelessWidget {
     if (viewModel.servicesNearYou.isEmpty && !viewModel.isLoading) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10),
-        child: Text('No nearby services found in ${viewModel.selectedCity}.', style: TextStyle(color: Colors.grey[600])),
+        child: Text(
+            "home_no_nearby".tr(namedArgs: {'city': viewModel.selectedCity}), // "No nearby services..."
+            style: TextStyle(color: Colors.grey[600])
+        ),
       );
     }
     return Container(
@@ -320,7 +317,7 @@ class HomeView extends StatelessWidget {
     if (viewModel.quickCategories.isEmpty && !viewModel.isLoading) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10),
-        child: Text('No categories found.', style: TextStyle(color: Colors.grey[600])),
+        child: Text("home_no_categories".tr(), style: TextStyle(color: Colors.grey[600])),
       );
     }
     return Container(
@@ -356,7 +353,7 @@ class HomeView extends StatelessWidget {
                   ),
                   SizedBox(height: 6),
                   Text(
-                    category.name,
+                    category.name, // (ده اسم الفئة من Firestore، ممكن نترجمه لاحقًا)
                     style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                     textAlign: TextAlign.center,
                   ),
@@ -375,7 +372,7 @@ class HomeView extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10),
         child: Text(
-            'No top rated providers found in ${viewModel.selectedCity}.',
+            "home_no_top_rated".tr(namedArgs: {'city': viewModel.selectedCity}),
             style: TextStyle(color: Colors.grey[600])
         ),
       );
@@ -450,7 +447,7 @@ class HomeView extends StatelessWidget {
                           ),
                         );
                       },
-                      child: Text('Book Now'),
+                      child: Text("home_book_now".tr()), // "Book Now"
                       style: ElevatedButton.styleFrom(
                           backgroundColor: kPrimaryColor,
                           foregroundColor: Colors.white,
@@ -496,17 +493,17 @@ class HomeView extends StatelessWidget {
                         borderRadius: BorderRadius.circular(20)
                     ),
                     child: Text(
-                      'NEW USER OFFER',
+                      "home_promo_offer".tr(), // "NEW USER OFFER"
                       style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
                     ),
                   ),
                   SizedBox(height: 8),
                   Text(
-                    'Get 30% Off',
+                    "home_promo_title".tr(), // "Get 30% Off"
                     style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   Text(
-                    'On your first booking with us',
+                    "home_promo_subtitle".tr(), // "On your first booking..."
                     style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 14),
                   ),
                 ],

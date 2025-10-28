@@ -1,24 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:easy_localization/easy_localization.dart'; // <-- 1. استيراد المكتبة
 
-// استيراد الـ ViewModels المطلوبة
+// (باقي الـ imports كما هي)
 import 'package:ahjizzzapp/viewmodels/dashboard_viewmodel.dart';
-import 'package:ahjizzzapp/viewmodels/home_viewmodel.dart'; // <-- الملف الذي عدلناه
+import 'package:ahjizzzapp/viewmodels/home_viewmodel.dart';
 import 'package:ahjizzzapp/viewmodels/my_bookings_viewmodel.dart';
 import 'package:ahjizzzapp/viewmodels/profile_viewmodel.dart';
 import 'package:ahjizzzapp/viewmodels/reviews_viewmodel.dart';
-
-// استيراد الـ Views (الشاشات) المطلوبة
 import 'package:ahjizzzapp/views/home_view.dart';
 import 'package:ahjizzzapp/views/my_bookings_view.dart';
 import 'package:ahjizzzapp/views/profile_view.dart';
 import 'package:ahjizzzapp/views/reviews_view.dart';
-
-// استيراد ملف الألوان
 import 'package:ahjizzzapp/shared/app_colors.dart';
-
-// استيراد الخدمات المطلوبة للـ ViewModels
-import 'package:ahjizzzapp/services/auth_service.dart'; // <-- نحتاجه هنا
+import 'package:ahjizzzapp/services/auth_service.dart';
 import 'package:ahjizzzapp/services/db_service.dart';
 
 class DashboardView extends StatelessWidget {
@@ -26,51 +21,21 @@ class DashboardView extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // ViewModel للتحكم في التاب الحالي
+        // (كل الـ Providers كما هي)
         ChangeNotifierProvider(create: (_) => DashboardViewModel()),
-
-        // **** 1. تعديل طريقة إنشاء HomeViewModel ****
-        ChangeNotifierProvider(
-          create: (context) => HomeViewModel(
-            context.read<DbService>(),   // تمرير DbService
-            context.read<AuthService>(), // <-- تمرير AuthService
-          ),
-        ),
-        // *******************************************
-
-        // ViewModel لشاشة حجوزاتي (My Bookings)
-        ChangeNotifierProvider(
-          create: (context) => MyBookingsViewModel(
-            context.read<DbService>(),
-            context.read<AuthService>(),
-          ),
-        ),
-
-        // ViewModel لشاشة التقييمات (Reviews)
-        ChangeNotifierProvider(
-          create: (context) => ReviewsViewModel(
-            context.read<DbService>(),
-            context.read<AuthService>(),
-          ),
-        ),
-
-        // ViewModel لشاشة حسابي (Profile)
-        ChangeNotifierProvider(
-          create: (context) => ProfileViewModel(
-            context.read<AuthService>(),
-            context.read<DbService>(),
-          ),
-        ),
+        ChangeNotifierProvider(create: (context) => HomeViewModel(context.read<DbService>(), context.read<AuthService>())),
+        ChangeNotifierProvider(create: (context) => MyBookingsViewModel(context.read<DbService>(), context.read<AuthService>())),
+        ChangeNotifierProvider(create: (context) => ReviewsViewModel(context.read<DbService>(), context.read<AuthService>())),
+        ChangeNotifierProvider(create: (context) => ProfileViewModel(context.read<AuthService>(), context.read<DbService>())),
       ],
       child: Consumer<DashboardViewModel>(
         builder: (context, dashboardViewModel, child) {
 
-          // قائمة الشاشات
           final List<Widget> screens = [
-            HomeView(),        // التاب 0
-            MyBookingsView(),  // التاب 1
-            ReviewsView(),     // التاب 2
-            ProfileView(),     // التاب 3
+            HomeView(),
+            MyBookingsView(),
+            ReviewsView(),
+            ProfileView(),
           ];
 
           return Scaffold(
@@ -81,36 +46,22 @@ class DashboardView extends StatelessWidget {
             // شريط التنقل السفلي
             bottomNavigationBar: BottomNavigationBar(
               currentIndex: dashboardViewModel.currentIndex,
-
-              // **** 2. تعديل onTap لتحديث ProfileViewModel ****
               onTap: (index) {
-                // التحقق إذا كان المستخدم ضغط على تاب مختلف
+                // (دالة onTap كما هي)
                 if (dashboardViewModel.currentIndex != index) {
-
-                  // إذا ضغط على "My Bookings" (index 1)، اطلب تحديث البيانات
                   if (index == 1) {
-                    print("Dashboard: Tapped My Bookings, refreshing data...");
                     context.read<MyBookingsViewModel>().fetchBookings();
                   }
-
-                  // إذا ضغط على "Reviews" (index 2)، اطلب تحديث البيانات
                   if (index == 2) {
-                    print("Dashboard: Tapped Reviews, refreshing data...");
                     context.read<ReviewsViewModel>().fetchUserReviews();
                   }
-
-                  // إذا ضغط على "Profile" (index 3)، اطلب تحديث البيانات
                   if (index == 3) {
-                    print("Dashboard: Tapped Profile, refreshing data...");
-                    // (سنحتاج لإضافة دالة refresh في ProfileViewModel)
-                    // context.read<ProfileViewModel>()._loadUserProfile();
+                    // (سنحتاج إضافة الدالة دي في الـ ViewModel)
+                    // context.read<ProfileViewModel>().loadUserProfile();
                   }
                 }
-
-                // 5. أخيرًا، قم بتغيير التاب
                 dashboardViewModel.setIndex(index);
               },
-              // *********************************************
 
               type: BottomNavigationBarType.fixed,
               selectedItemColor: kPrimaryColor,
@@ -119,28 +70,30 @@ class DashboardView extends StatelessWidget {
               selectedFontSize: 12,
               unselectedFontSize: 12,
 
-              items: const [
+              // **** 2. ترجمة الـ Labels ****
+              items: [
                 BottomNavigationBarItem(
                   icon: Icon(Icons.home_outlined),
                   activeIcon: Icon(Icons.home),
-                  label: 'Home',
+                  label: 'nav_home'.tr(), // "Home"
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.calendar_month_outlined),
                   activeIcon: Icon(Icons.calendar_month),
-                  label: 'My Bookings',
+                  label: 'nav_bookings'.tr(), // "My Bookings"
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.star_border_outlined),
                   activeIcon: Icon(Icons.star),
-                  label: 'Reviews',
+                  label: 'nav_reviews'.tr(), // "Reviews"
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.person_outline),
                   activeIcon: Icon(Icons.person),
-                  label: 'Profile',
+                  label: 'nav_profile'.tr(), // "Profile"
                 ),
               ],
+              // **************************
             ),
           );
         },
