@@ -9,7 +9,8 @@ import 'package:ahjizzzapp/views/signup_view.dart';
 import 'package:ahjizzzapp/views/reset_password_view.dart';
 import 'package:ahjizzzapp/views/dashboard_view.dart';
 import 'package:ahjizzzapp/views/booking_confirmation_view.dart';
-import 'package:ahjizzzapp/views/update_profile_view.dart'; // <-- 1. استيراد الشاشة الجديدة
+import 'package:ahjizzzapp/views/update_profile_view.dart';
+import 'package:ahjizzzapp/views/search_view.dart'; // <-- 1. استيراد شاشة البحث الجديدة
 
 // Shared
 import 'package:ahjizzzapp/shared/app_colors.dart';
@@ -22,7 +23,8 @@ import 'package:ahjizzzapp/services/db_service.dart';
 import 'package:ahjizzzapp/viewmodels/login_viewmodel.dart';
 import 'package:ahjizzzapp/viewmodels/signup_viewmodel.dart';
 import 'package:ahjizzzapp/viewmodels/reset_password_viewmodel.dart';
-import 'package:ahjizzzapp/viewmodels/update_profile_viewmodel.dart'; // <-- 2. استيراد الـ ViewModel الجديد
+import 'package:ahjizzzapp/viewmodels/update_profile_viewmodel.dart';
+import 'package:ahjizzzapp/viewmodels/search_viewmodel.dart'; // <-- 2. استيراد VM البحث الجديد
 
 // import 'firebase_options.dart';
 
@@ -42,7 +44,7 @@ void main() async {
         Provider<AuthService>(create: (_) => AuthService()),
         Provider<DbService>(create: (_) => DbService()),
 
-        // --- VIEWMODELS (Auth Flow) ---
+        // --- VIEWMODELS (Non-Dashboard) ---
         ChangeNotifierProvider<LoginViewModel>(
           create: (context) => LoginViewModel(context.read<AuthService>()),
         ),
@@ -55,16 +57,18 @@ void main() async {
         ChangeNotifierProvider<ResetPasswordViewModel>(
           create: (context) => ResetPasswordViewModel(context.read<AuthService>()),
         ),
-
-        // **** 3. إضافة الـ ViewModel الجديد ****
-        // (نضيفه هنا لأنه يُستخدم خارج الداشبورد الرئيسي)
         ChangeNotifierProvider<UpdateProfileViewModel>(
           create: (context) => UpdateProfileViewModel(
             context.read<AuthService>(),
             context.read<DbService>(),
           ),
         ),
-        // **********************************
+
+        // **** 3. إضافة VM البحث ****
+        ChangeNotifierProvider<SearchViewModel>(
+          create: (context) => SearchViewModel(context.read<DbService>()),
+        ),
+        // ***************************
       ],
       child: MyApp(),
     ),
@@ -74,46 +78,14 @@ void main() async {
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    // (الوصول للخدمة هنا آمن لأن الـ Provider فوق MyApp)
     final authService = context.read<AuthService>();
 
     return MaterialApp(
       title: 'Ahjiz App',
       debugShowCheckedModeBanner: false,
-      // (الثيم كما هو)
-      theme: ThemeData(
-        primaryColor: kPrimaryColor,
-        scaffoldBackgroundColor: kLightBackgroundColor,
-        fontFamily: 'Roboto',
-        colorScheme: ColorScheme.fromSeed(seedColor: kPrimaryColor),
-        useMaterial3: true,
-        appBarTheme: const AppBarTheme(
-          elevation: 1,
-          backgroundColor: kLightBackgroundColor,
-          foregroundColor: Colors.black87,
-          iconTheme: IconThemeData(color: Colors.black87),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: kPrimaryColor,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-        ),
-        outlinedButtonTheme: OutlinedButtonThemeData(
-          style: OutlinedButton.styleFrom(
-            side: BorderSide(color: Colors.grey[400]!),
-            foregroundColor: Colors.grey[700],
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            textStyle: const TextStyle(fontSize: 12),
-          ),
-        ),
-      ),
+      theme: ThemeData( /* ... App Theme ... */ ),
 
-      // (التحقق من حالة المصادقة كما هو)
+      // Authentication State Handling
       home: StreamProvider<User?>.value(
         value: authService.authStateChanges,
         initialData: authService.currentUser,
@@ -128,7 +100,8 @@ class MyApp extends StatelessWidget {
         '/reset-password': (context) => ResetPasswordView(),
         '/dashboard': (context) => DashboardView(),
         '/booking-confirmation': (context) => BookingConfirmationView(),
-        '/update-profile': (context) => UpdateProfileView(), // <-- المسار الجديد
+        '/update-profile': (context) => UpdateProfileView(),
+        '/search': (context) => SearchView(), // <-- المسار الجديد
       },
       // *************************************
     );

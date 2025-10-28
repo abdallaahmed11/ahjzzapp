@@ -46,16 +46,62 @@ class DbService {
       return [];
     }
   }
+  Future<List<ServiceProvider>> searchProviders(String query) async {
+    // نتأكد أن البحث ليس فارغًا
+    if (query.isEmpty) {
+      return [];
+    }
 
-  // دالة جلب الخدمات القريبة
-  Future<List<ServiceProvider>> getServicesNearYou({int limit = 5}) async {
+    // تحويل نص البحث لحروف صغيرة (للبحث غير الحساس للحالة)
+    String lowerCaseQuery = query.toLowerCase();
+    // (ملاحظة: البحث الفعلي في Firestore حساس للحالة. لحل احترافي، سنحتاج لتخزين
+    // نسخة 'lowercase_name' من الاسم في Firestore أو استخدام خدمة بحث خارجية.
+    // حاليًا، سنقوم ببحث "يبدأ بـ" (case-sensitive) كحل بسيط)
+
     try {
-      print("DbService: Fetching nearby services from Firestore...");
+      print("DbService: Searching providers for query: $query");
+
+      // البحث عن المستندات حيث حقل 'name' يبدأ بنص البحث
       QuerySnapshot snapshot = await _providersCollection
-          .orderBy('name')
-          .limit(limit)
+          .where('name', isGreaterThanOrEqualTo: query)
+          .where('name', isLessThanOrEqualTo: query + '\uf8ff') // \uf8ff هي علامة لنهاية البحث
+          .limit(10) // جلب أول 10 نتائج فقط
           .get();
+
+      // تحويل النتائج لموديل ServiceProvider
+      List<ServiceProvider> providers = snapshot.docs
+          .map((doc) => ServiceProvider.fromFirestore(doc))
+          .toList();
+
+      print("DbService: Found ${providers.length} providers for query '$query'.");
+      return providers;
+
+    } catch (e) {
+      print("Error searching providers: $e");
+      // هذا البحث سيحتاج فهرس (Index) على حقل 'name'
+      if (e is FirebaseException && e.code == 'failed-precondition') {
+        print("Firestore Index potentially missing for searchProviders query (on 'name' field). Check Firebase console.");
+      }
+      return [];
+    }
+  }
+  // دالة جلب الخدمات القريبة
+  Future<List<ServiceProvider>> getServicesNearYou({required String city, int limit = 5}) async {
+    try {
+      print("DbService: Fetching nearby services for city: $city");
+
+      // **** 1. إضافة فلتر المدينة ****
+      Query query = _providersCollection
+          .where('city', isEqualTo: city); // <-- الفلتر الجديد
+
+      // (لا يزال الترتيب بالاسم، يمكن تغييره لاحقاً لـ "المسافة" الحقيقية)
+      query = query.orderBy('name').limit(limit);
+
+      QuerySnapshot snapshot = await query.get();
+      // *****************************
+
       List<ServiceProvider> providers = snapshot.docs.map((doc) {
+        // ... (كود الـ mapping كما هو)
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>? ?? {};
         return ServiceProvider(
           id: doc.id,
@@ -66,24 +112,37 @@ class DbService {
           distance: data['distance'] ?? 'Unknown distance',
         );
       }).toList();
-      print("DbService: Fetched ${providers.length} nearby services.");
+
+      print("DbService: Fetched ${providers.length} nearby services for $city.");
       return providers;
+
     } catch (e) {
       print("Error fetching nearby services: $e");
+      // (قد نحتاج فهرس جديد)
+      if (e is FirebaseException && e.code == 'failed-precondition') {
+        print("Firestore Index potentially missing for city + name query. Check Firebase console.");
+      }
       return [];
     }
   }
+  // ------------------------------------
 
-  // دالة جلب الأعلى تقييماً
-  Future<List<TopRatedProvider>> getTopRatedProviders({int limit = 3}) async {
+  // --- دالة جلب الأعلى تقييماً (مُعدلة) ---
+  Future<List<TopRatedProvider>> getTopRatedProviders({required String city, int limit = 3}) async {
     try {
-      print("DbService: Fetching top rated providers from Firestore...");
+      print("DbService: Fetching top rated providers for city: $city");
+
+      // **** 2. إضافة فلتر المدينة ****
       QuerySnapshot snapshot = await _providersCollection
           .where('isTopRated', isEqualTo: true)
+          .where('city', isEqualTo: city) // <-- الفلتر الجديد
           .orderBy('rating', descending: true)
           .limit(limit)
           .get();
+      // *****************************
+
       List<TopRatedProvider> topProviders = snapshot.docs.map((doc) {
+        // ... (كود الـ mapping كما هو)
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>? ?? {};
         return TopRatedProvider(
           id: doc.id,
@@ -92,13 +151,18 @@ class DbService {
           reviews: (data['reviews'] as int?) ?? 0,
           category: data['category'] ?? 'General',
           price: data['priceIndicator'] ?? 'N/A',
-          image: data['imageUrl'] ?? '', // <-- إضافة جلب رابط الصورة
+          image: data['imageUrl'] ?? '',
         );
       }).toList();
-      print("DbService: Fetched ${topProviders.length} top rated providers.");
+
+      print("DbService: Fetched ${topProviders.length} top rated providers for $city.");
       return topProviders;
     } catch (e) {
       print("Error fetching top rated providers: $e");
+      // (قد نحتاج فهرس جديد)
+      if (e is FirebaseException && e.code == 'failed-precondition') {
+        print("Firestore Index potentially missing for isTopRated + city + rating query. Check Firebase console.");
+      }
       return [];
     }
   }

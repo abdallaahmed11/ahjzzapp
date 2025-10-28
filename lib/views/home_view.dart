@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:ahjizzzapp/viewmodels/home_viewmodel.dart'; // استيراد الـ ViewModel
-import 'package:ahjizzzapp/shared/app_colors.dart';     // استيراد الألوان
-import 'package:ahjizzzapp/views/notifications_view.dart'; // استيراد شاشة التنبيهات
-import 'package:ahjizzzapp/views/service_list_view.dart';  // استيراد شاشة قائمة الخدمات
-import 'package:ahjizzzapp/views/provider_details_view.dart';// استيراد شاشة تفاصيل المزود
-import 'package:ahjizzzapp/models/service_provider.dart';   // استيراد الموديل المطلوب للانتقال
+import 'package:ahjizzzapp/viewmodels/home_viewmodel.dart';
+import 'package:ahjizzzapp/shared/app_colors.dart';
+import 'package:ahjizzzapp/views/notifications_view.dart';
+import 'package:ahjizzzapp/views/service_list_view.dart';
+import 'package:ahjizzzapp/views/provider_details_view.dart';
+import 'package:ahjizzzapp/models/service_provider.dart';
+import 'package:ahjizzzapp/models/top_rated_provider.dart';
+import 'package:ahjizzzapp/views/search_view.dart'; // <-- 1. استيراد شاشة البحث
 
 class HomeView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    // استخدام Consumer لمراقبة التغييرات في HomeViewModel
     final viewModel = context.watch<HomeViewModel>();
 
     return Scaffold(
@@ -21,28 +22,31 @@ class HomeView extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Hello, ${viewModel.userName}!', // عرض اسم المستخدم
+              'Hello, ${viewModel.userName}!',
               style: TextStyle(
                   color: Colors.black,
                   fontWeight: FontWeight.bold,
                   fontSize: 20),
             ),
             Text(
-              'What service do you need today?', // نص فرعي
+              'What service do you need today?',
               style: TextStyle(color: Colors.grey[600], fontSize: 14),
             ),
           ],
         ),
         actions: [
+          // (زر البحث في الـ AppBar أصبح غير ضروري الآن، لكن يمكن تركه)
           IconButton(
-            icon: Icon(Icons.search, color: Colors.grey[700]), // أيقونة البحث
-            onPressed: () { /* TODO: Implement Search */ },
+            icon: Icon(Icons.search, color: Colors.grey[700]),
+            onPressed: () {
+              // الانتقال لشاشة البحث
+              Navigator.of(context).pushNamed('/search');
+            },
           ),
           IconButton(
-            icon: Icon(Icons.notifications_none_outlined, // أيقونة التنبيهات
+            icon: Icon(Icons.notifications_none_outlined,
                 color: Colors.grey[700]),
             onPressed: () {
-              // الانتقال لشاشة التنبيهات
               Navigator.of(context).push(
                 MaterialPageRoute(builder: (context) => NotificationsView()),
               );
@@ -52,29 +56,29 @@ class HomeView extends StatelessWidget {
         ],
       ),
       backgroundColor: kLightBackgroundColor,
-      // إظهار مؤشر التحميل أو محتوى الشاشة
       body: viewModel.isLoading
           ? Center(child: CircularProgressIndicator(color: kPrimaryColor))
-          : RefreshIndicator( // لإضافة السحب للتحديث
-        onRefresh: viewModel.fetchData, // استدعاء دالة جلب البيانات
+          : RefreshIndicator(
+        onRefresh: viewModel.fetchData,
         color: kPrimaryColor,
         child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(), // للسماح بالسحب
+          physics: const AlwaysScrollableScrollPhysics(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSearchAndFilters(context), // قسم البحث والفلاتر
+              // قسم البحث والفلاتر (تم تمرير viewModel)
+              _buildSearchAndFilters(context, viewModel),
 
-              _buildSectionHeader(context, 'Services Near You', 'See All'), // عنوان قسم الخدمات القريبة
-              _buildServicesNearYouList(context, viewModel), // قائمة الخدمات القريبة
+              _buildSectionHeader(context, 'Services Near You', 'See All'),
+              _buildServicesNearYouList(context, viewModel),
 
-              _buildSectionHeader(context, 'Categories', null), // عنوان قسم الفئات
-              _buildCategoriesList(context, viewModel), // قائمة الفئات
+              _buildSectionHeader(context, 'Categories', null),
+              _buildCategoriesList(context, viewModel),
 
-              _buildSectionHeader(context, 'Top Rated in Your Area', null), // عنوان قسم الأعلى تقييماً
-              _buildTopRatedList(context, viewModel), // قائمة الأعلى تقييماً
+              _buildSectionHeader(context, 'Top Rated in Your Area', null),
+              _buildTopRatedList(context, viewModel),
 
-              _buildPromoBanner(context), // بانر العرض
+              _buildPromoBanner(context),
             ],
           ),
         ),
@@ -82,39 +86,58 @@ class HomeView extends StatelessWidget {
     );
   }
 
-  // --- الدوال المساعدة لبناء أجزاء الواجهة ---
+  // --- (دوال مساعدة لتقسيم الواجهة) ---
 
-  Widget _buildSearchAndFilters(BuildContext context) {
+  // **** دالة البحث والفلاتر (مُعدلة لتشغيل شاشة البحث) ****
+  Widget _buildSearchAndFilters(BuildContext context, HomeViewModel viewModel) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
         children: [
-          TextField(
-            decoration: InputDecoration(
-              hintText: 'Search for services...',
-              prefixIcon: Icon(Icons.search, color: Colors.grey),
-              suffixIcon: Icon(Icons.filter_list, color: kPrimaryColor),
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(30),
-                borderSide: BorderSide.none,
+          // **** 2. جعل شريط البحث قابل للضغط ****
+          GestureDetector(
+            onTap: () {
+              // الانتقال لشاشة البحث عند الضغط
+              Navigator.of(context).pushNamed('/search');
+            },
+            child: AbsorbPointer( // لمنع الـ TextField من استقبال الضغطات
+              child: TextField(
+                enabled: false, // تعطيل الـ TextField
+                decoration: InputDecoration(
+                  hintText: 'Search for services...',
+                  prefixIcon: Icon(Icons.search, color: Colors.grey),
+                  suffixIcon: Icon(Icons.filter_list, color: kPrimaryColor),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(30),
+                    borderSide: BorderSide.none,
+                  ),
+                  // (تأكد من تعطيل الإطار عند عدم التفعيل)
+                  disabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(30),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
               ),
             ),
           ),
+          // ****************************************
           SizedBox(height: 12),
           Row(
             children: [
-              _buildFilterChip(context, Icons.location_on, 'Cairo, Egypt', true),
+              _buildCityFilterButton(context, viewModel), // (فلتر المدينة كما هو)
               SizedBox(width: 10),
-              _buildFilterChip(context, Icons.calendar_today, 'Today', false),
+              _buildFilterChip(context, Icons.calendar_today, 'Today', false), // (فلتر التاريخ كما هو)
             ],
           )
         ],
       ),
     );
   }
+  // *******************************************
 
+  // (دالة الفلتر العادية)
   Widget _buildFilterChip(BuildContext context, IconData icon, String label, bool isActive) {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -136,6 +159,42 @@ class HomeView extends StatelessWidget {
     );
   }
 
+  // (دالة فلتر المدينة)
+  Widget _buildCityFilterButton(BuildContext context, HomeViewModel viewModel) {
+    return PopupMenuButton<String>(
+      onSelected: (String newCity) {
+        viewModel.changeCity(newCity);
+      },
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: kPrimaryColor,
+          borderRadius: BorderRadius.circular(30),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.location_on, size: 16, color: Colors.white),
+            SizedBox(width: 6),
+            Text(
+              viewModel.selectedCity,
+              style: TextStyle(color: Colors.white),
+            ),
+            Icon(Icons.arrow_drop_down, size: 20, color: Colors.white),
+          ],
+        ),
+      ),
+      itemBuilder: (BuildContext context) {
+        return viewModel.availableCities.map((String city) {
+          return PopupMenuItem<String>(
+            value: city,
+            child: Text(city),
+          );
+        }).toList();
+      },
+    );
+  }
+
+  // (دالة عناوين الأقسام)
   Widget _buildSectionHeader(BuildContext context, String title, String? actionText) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
@@ -148,10 +207,7 @@ class HomeView extends StatelessWidget {
           ),
           if (actionText != null)
             InkWell(
-              onTap: () {
-                // TODO: Implement navigation for "See All"
-                print("$title - See All tapped");
-              },
+              onTap: () { print("$title - See All tapped"); },
               child: Text(
                 actionText,
                 style: TextStyle(color: kPrimaryColor, fontWeight: FontWeight.w600),
@@ -162,11 +218,12 @@ class HomeView extends StatelessWidget {
     );
   }
 
+  // (دالة قائمة "Services Near You")
   Widget _buildServicesNearYouList(BuildContext context, HomeViewModel viewModel) {
     if (viewModel.servicesNearYou.isEmpty && !viewModel.isLoading) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10),
-        child: Text('No nearby services found.', style: TextStyle(color: Colors.grey[600])),
+        child: Text('No nearby services found in ${viewModel.selectedCity}.', style: TextStyle(color: Colors.grey[600])),
       );
     }
     return Container(
@@ -184,10 +241,9 @@ class HomeView extends StatelessWidget {
               elevation: 2,
               shadowColor: Colors.black12,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-              clipBehavior: Clip.antiAlias, // لقص الصورة
+              clipBehavior: Clip.antiAlias,
               child: InkWell(
                 onTap: () {
-                  print("Tapped nearby service: ${service.name}");
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (context) => ProviderDetailsView(provider: service),
@@ -219,10 +275,7 @@ class HomeView extends StatelessWidget {
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: Text(
-                                service.price,
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                              ),
+                              child: Text( service.price, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12) ),
                             )
                         ),
                       ],
@@ -232,12 +285,7 @@ class HomeView extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            service.name,
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                          Text( service.name, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15), maxLines: 1, overflow: TextOverflow.ellipsis),
                           SizedBox(height: 4),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -245,7 +293,7 @@ class HomeView extends StatelessWidget {
                               Row(children: [
                                 Icon(Icons.star, color: Colors.amber, size: 16),
                                 SizedBox(width: 4),
-                                Text(service.rating.toString()),
+                                Text(service.rating.toStringAsFixed(1)),
                               ]),
                               Row(children: [
                                 Icon(Icons.location_on, color: Colors.grey, size: 16),
@@ -267,6 +315,7 @@ class HomeView extends StatelessWidget {
     );
   }
 
+  // (دالة قائمة "Categories")
   Widget _buildCategoriesList(BuildContext context, HomeViewModel viewModel) {
     if (viewModel.quickCategories.isEmpty && !viewModel.isLoading) {
       return Padding(
@@ -285,7 +334,6 @@ class HomeView extends StatelessWidget {
           final category = viewModel.quickCategories[index];
           return InkWell(
             onTap: () {
-              print("Tapped category: ${category.name}");
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (context) => ServiceListView(
@@ -321,13 +369,13 @@ class HomeView extends StatelessWidget {
     );
   }
 
-  // **** دالة بناء قائمة الأعلى تقييماً (المُعدلة) ****
+  // (دالة قائمة "Top Rated")
   Widget _buildTopRatedList(BuildContext context, HomeViewModel viewModel) {
     if (viewModel.topRatedProviders.isEmpty && !viewModel.isLoading) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10),
         child: Text(
-            'No top rated providers found yet.',
+            'No top rated providers found in ${viewModel.selectedCity}.',
             style: TextStyle(color: Colors.grey[600])
         ),
       );
@@ -349,20 +397,17 @@ class HomeView extends StatelessWidget {
             padding: const EdgeInsets.all(12.0),
             child: Row(
               children: [
-                // **** 1. إضافة الصورة هنا ****
                 CircleAvatar(
                   radius: 25,
                   backgroundColor: Colors.grey[200],
                   backgroundImage: provider.image.isNotEmpty
-                      ? NetworkImage(provider.image) // استخدام الصورة الحقيقية
+                      ? NetworkImage(provider.image)
                       : null,
                   child: provider.image.isEmpty
                       ? Icon(Icons.storefront, color: Colors.grey[500])
                       : null,
                 ),
                 SizedBox(width: 12),
-                // ***************************
-
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -380,7 +425,6 @@ class HomeView extends StatelessWidget {
                   ),
                 ),
                 SizedBox(width: 8),
-
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -392,18 +436,14 @@ class HomeView extends StatelessWidget {
                     SizedBox(height: 4),
                     ElevatedButton(
                       onPressed: () {
-                        print("Book Now tapped for (Top Rated): ${provider.name}");
-                        // **** 2. التعديل هنا: استخدام provider.image ****
                         final providerData = ServiceProvider(
                             id: provider.id,
                             name: provider.name,
-                            image: provider.image, // <-- استخدام الصورة الحقيقية
+                            image: provider.image,
                             rating: provider.rating,
                             price: provider.price,
-                            distance: "Nearby" // (لسه محتاجين نظبط المسافة)
+                            distance: "Nearby"
                         );
-                        // *****************************************
-
                         Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (context) => ProviderDetailsView(provider: providerData),
@@ -427,8 +467,8 @@ class HomeView extends StatelessWidget {
       },
     );
   }
-  // ---------------------------------------------
 
+  // (دالة بانر العرض)
   Widget _buildPromoBanner(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16,16,16, 24),
