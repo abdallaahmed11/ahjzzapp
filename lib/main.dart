@@ -2,10 +2,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
-// **** 1. استيراد مكتبة الترجمة ****
 import 'package:easy_localization/easy_localization.dart';
 
-// (استيراد كل الـ Views)
+// Views
 import 'package:ahjizzzapp/views/login_view.dart';
 import 'package:ahjizzzapp/views/signup_view.dart';
 import 'package:ahjizzzapp/views/reset_password_view.dart';
@@ -13,55 +12,44 @@ import 'package:ahjizzzapp/views/dashboard_view.dart';
 import 'package:ahjizzzapp/views/booking_confirmation_view.dart';
 import 'package:ahjizzzapp/views/update_profile_view.dart';
 import 'package:ahjizzzapp/views/search_view.dart';
+import 'package:ahjizzzapp/views/add_provider_view.dart';
 
-// (استيراد الألوان)
+// Shared
 import 'package:ahjizzzapp/shared/app_colors.dart';
 
-// (استيراد الخدمات)
+// Services
 import 'package:ahjizzzapp/services/auth_service.dart';
 import 'package:ahjizzzapp/services/db_service.dart';
 
-// (استيراد الـ ViewModels)
+// ViewModels
 import 'package:ahjizzzapp/viewmodels/login_viewmodel.dart';
 import 'package:ahjizzzapp/viewmodels/signup_viewmodel.dart';
 import 'package:ahjizzzapp/viewmodels/reset_password_viewmodel.dart';
 import 'package:ahjizzzapp/viewmodels/update_profile_viewmodel.dart';
 import 'package:ahjizzzapp/viewmodels/search_viewmodel.dart';
+import 'package:ahjizzzapp/viewmodels/add_provider_viewmodel.dart';
+import 'package:ahjizzzapp/viewmodels/admin_viewmodel.dart'; // <-- 1. استيراد AdminViewModel
 
-// (استيراد ملف خيارات Firebase إذا كنت تستخدمه)
 // import 'firebase_options.dart';
 
 void main() async {
-  // التأكد من تهيئة كل شيء قبل التشغيل
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
-
-  // **** 2. تهيئة مكتبة الترجمة ****
   await EasyLocalization.ensureInitialized();
-  // ********************************
-
   print("Firebase initialized successfully!");
 
   runApp(
-    // **** 3. تغليف التطبيق بـ EasyLocalization ****
     EasyLocalization(
-      // اللغات التي يدعمها التطبيق
-      supportedLocales: [
-        Locale('en'), // اللغة الإنجليزية
-        Locale('ar'), // اللغة العربية
-      ],
-      // المسار اللي فيه ملفات الترجمة
+      supportedLocales: [ Locale('en'), Locale('ar'), ],
       path: 'assets/translations',
-      // اللغة الافتراضية في حالة عدم وجود لغة الجهاز
       fallbackLocale: Locale('en'),
-      // الـ MultiProvider أصبح بداخلها
       child: MultiProvider(
         providers: [
-          // --- الخدمات (Services) ---
+          // --- SERVICES ---
           Provider<AuthService>(create: (_) => AuthService()),
           Provider<DbService>(create: (_) => DbService()),
 
-          // --- ViewModels (التي تعمل خارج الداشبورد) ---
+          // --- VIEWMODELS (Non-Dashboard) ---
           ChangeNotifierProvider<LoginViewModel>(
             create: (context) => LoginViewModel(context.read<AuthService>()),
           ),
@@ -83,32 +71,41 @@ void main() async {
           ChangeNotifierProvider<SearchViewModel>(
             create: (context) => SearchViewModel(context.read<DbService>()),
           ),
-          // (الـ ViewModels الخاصة بالداشبورد يتم توفيرها داخل DashboardView)
+          ChangeNotifierProvider<AddProviderViewModel>(
+            create: (context) => AddProviderViewModel(context.read<DbService>()),
+          ),
+
+          // **** 2. إضافة AdminViewModel هنا ****
+          // (عشان كل التطبيق يشوفه)
+          ChangeNotifierProvider<AdminViewModel>(
+            create: (context) => AdminViewModel(
+              context.read<DbService>(),
+              context.read<AuthService>(),
+            ),
+          ),
+          // **********************************
         ],
         child: MyApp(), // تشغيل التطبيق
       ),
     ),
-    // ********************************************
   );
 }
 
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    // قراءة خدمة المصادقة (آمن الآن لأن الـ Provider فوق MyApp)
     final authService = context.read<AuthService>();
 
     return MaterialApp(
-      title: 'Ahjiz App', // (يمكن ترجمة هذا لاحقًا)
+      title: 'Ahjiz App',
       debugShowCheckedModeBanner: false,
 
-      // **** 4. ربط الـ MaterialApp بالترجمة ****
-      locale: context.locale, // تحديد اللغة الحالية من المكتبة
-      supportedLocales: context.supportedLocales, // اللغات المدعومة
-      localizationsDelegates: context.localizationDelegates, // (مهم جداً)
-      // *************************************
+      // (إعدادات الترجمة)
+      locale: context.locale,
+      supportedLocales: context.supportedLocales,
+      localizationsDelegates: context.localizationDelegates,
 
-      // (الثيم الخاص بالتطبيق كما هو)
+      // (الثيم)
       theme: ThemeData(
         primaryColor: kPrimaryColor,
         scaffoldBackgroundColor: kLightBackgroundColor,
@@ -158,6 +155,7 @@ class MyApp extends StatelessWidget {
         '/booking-confirmation': (context) => BookingConfirmationView(),
         '/update-profile': (context) => UpdateProfileView(),
         '/search': (context) => SearchView(),
+        '/add-provider': (context) => AddProviderView(),
       },
     );
   }

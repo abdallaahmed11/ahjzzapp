@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:easy_localization/easy_localization.dart'; // <-- 1. استيراد المكتبة
+import 'package:easy_localization/easy_localization.dart';
 
-// (باقي الـ imports كما هي)
+// استيراد الـ ViewModels المطلوبة
 import 'package:ahjizzzapp/viewmodels/dashboard_viewmodel.dart';
 import 'package:ahjizzzapp/viewmodels/home_viewmodel.dart';
 import 'package:ahjizzzapp/viewmodels/my_bookings_viewmodel.dart';
 import 'package:ahjizzzapp/viewmodels/profile_viewmodel.dart';
 import 'package:ahjizzzapp/viewmodels/reviews_viewmodel.dart';
+import 'package:ahjizzzapp/viewmodels/admin_viewmodel.dart'; // (لسه محتاجينه عشان نعمل تحديث للـ role)
+
+// استيراد الـ Views (الشاشات) المطلوبة
 import 'package:ahjizzzapp/views/home_view.dart';
 import 'package:ahjizzzapp/views/my_bookings_view.dart';
 import 'package:ahjizzzapp/views/profile_view.dart';
 import 'package:ahjizzzapp/views/reviews_view.dart';
+
+// استيراد ملف الألوان والخدمات
 import 'package:ahjizzzapp/shared/app_colors.dart';
 import 'package:ahjizzzapp/services/auth_service.dart';
 import 'package:ahjizzzapp/services/db_service.dart';
@@ -21,7 +26,12 @@ class DashboardView extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // (كل الـ Providers كما هي)
+        // **** 1. حذف AdminViewModel من هنا ****
+        // ChangeNotifierProvider(
+        //   create: (context) => AdminViewModel( ... ),
+        // ),
+        // **********************************
+
         ChangeNotifierProvider(create: (_) => DashboardViewModel()),
         ChangeNotifierProvider(create: (context) => HomeViewModel(context.read<DbService>(), context.read<AuthService>())),
         ChangeNotifierProvider(create: (context) => MyBookingsViewModel(context.read<DbService>(), context.read<AuthService>())),
@@ -30,7 +40,6 @@ class DashboardView extends StatelessWidget {
       ],
       child: Consumer<DashboardViewModel>(
         builder: (context, dashboardViewModel, child) {
-
           final List<Widget> screens = [
             HomeView(),
             MyBookingsView(),
@@ -47,17 +56,15 @@ class DashboardView extends StatelessWidget {
             bottomNavigationBar: BottomNavigationBar(
               currentIndex: dashboardViewModel.currentIndex,
               onTap: (index) {
-                // (دالة onTap كما هي)
+                // (الـ ViewModel الخاص بالتاب اللي رايحله بيعمل refresh)
                 if (dashboardViewModel.currentIndex != index) {
-                  if (index == 1) {
-                    context.read<MyBookingsViewModel>().fetchBookings();
-                  }
-                  if (index == 2) {
-                    context.read<ReviewsViewModel>().fetchUserReviews();
-                  }
+                  if (index == 1) { context.read<MyBookingsViewModel>().fetchBookings(); }
+                  if (index == 2) { context.read<ReviewsViewModel>().fetchUserReviews(); }
                   if (index == 3) {
-                    // (سنحتاج إضافة الدالة دي في الـ ViewModel)
-                    // context.read<ProfileViewModel>().loadUserProfile();
+                    context.read<ProfileViewModel>().loadUserProfile();
+                    // **** 2. تحديث الدور عند الضغط على البروفايل ****
+                    context.read<AdminViewModel>().checkUserRole();
+                    // ******************************************
                   }
                 }
                 dashboardViewModel.setIndex(index);
@@ -70,30 +77,29 @@ class DashboardView extends StatelessWidget {
               selectedFontSize: 12,
               unselectedFontSize: 12,
 
-              // **** 2. ترجمة الـ Labels ****
+              // (الـ items مترجمة)
               items: [
                 BottomNavigationBarItem(
                   icon: Icon(Icons.home_outlined),
                   activeIcon: Icon(Icons.home),
-                  label: 'nav_home'.tr(), // "Home"
+                  label: 'nav_home'.tr(),
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.calendar_month_outlined),
                   activeIcon: Icon(Icons.calendar_month),
-                  label: 'nav_bookings'.tr(), // "My Bookings"
+                  label: 'nav_bookings'.tr(),
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.star_border_outlined),
                   activeIcon: Icon(Icons.star),
-                  label: 'nav_reviews'.tr(), // "Reviews"
+                  label: 'nav_reviews'.tr(),
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.person_outline),
                   activeIcon: Icon(Icons.person),
-                  label: 'nav_profile'.tr(), // "Profile"
+                  label: 'nav_profile'.tr(),
                 ),
               ],
-              // **************************
             ),
           );
         },

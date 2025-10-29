@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 // استيراد الموديلات والخدمات المطلوبة
 import 'package:ahjizzzapp/models/service_provider.dart';
-import 'package:ahjizzzapp/services/db_service.dart'; // <-- استيراد DbService
-import 'package:ahjizzzapp/views/time_selection_view.dart'; // <-- استيراد الشاشة التالية
+import 'package:ahjizzzapp/services/db_service.dart';
+import 'package:ahjizzzapp/views/time_selection_view.dart';
+import 'package:ahjizzzapp/models/review_model.dart'; // (استيراد موديل التقييم)
 
 // **** موديل الخدمة: يُعرّف هنا لأنه خاص بهذه الواجهة ****
-// (يمكن نقله لملف models/provider_service_model.dart إذا أردت)
 class ProviderServiceModel {
   final String id;
   final String name;
@@ -22,18 +22,20 @@ class ProviderServiceModel {
 // *****************************************************
 
 class ProviderDetailsViewModel extends ChangeNotifier {
-  final DbService _dbService; // الخدمة لجلب البيانات
-  final ServiceProvider provider; // معلومات المزود الأساسية
+  final DbService _dbService;
+  final ServiceProvider provider;
 
   // --- الحالة (State) ---
   bool _isLoading = true; // البدء بحالة التحميل
   List<ProviderServiceModel> _services = []; // قائمة الخدمات الفعلية
+  List<ReviewModel> _reviews = []; // قائمة التقييمات
   ProviderServiceModel? _selectedService; // الخدمة التي يختارها المستخدم
   String? _errorMessage; // لعرض أي أخطاء
 
   // --- Getters ---
   bool get isLoading => _isLoading;
   List<ProviderServiceModel> get services => _services;
+  List<ReviewModel> get reviews => _reviews;
   ProviderServiceModel? get selectedService => _selectedService;
   String? get errorMessage => _errorMessage;
 
@@ -41,28 +43,39 @@ class ProviderDetailsViewModel extends ChangeNotifier {
   // يتطلب DbService ومعلومات المزود
   ProviderDetailsViewModel(this._dbService, this.provider) {
     // جلب قائمة الخدمات فور إنشاء الـ ViewModel
-    fetchProviderServices();
+    fetchProviderDetails(); // <-- 1. استخدام الاسم الجديد هنا
   }
 
   // --- الأفعال (Actions) ---
 
-  // **** دالة جلب الخدمات (مُحدثة) ****
-  Future<void> fetchProviderServices() async {
+  // **** 2. تعديل اسم الدالة هنا ****
+  // (اسمها اتغير من fetchProviderServices إلى fetchProviderDetails)
+  Future<void> fetchProviderDetails() async {
     _isLoading = true;
-    _errorMessage = null; // مسح الأخطاء السابقة
-    // (لا نحتاج notifyListeners() هنا لأننا سنفعلها في finally)
+    _errorMessage = null;
+    notifyListeners(); // إظهار التحميل
 
     try {
-      // استدعاء الدالة الجديدة من DbService باستخدام ID المزود
-      _services = await _dbService.getServicesForProvider(provider.id);
-      print("ProviderDetailsViewModel: Fetched ${_services.length} services.");
+      // جلب الخدمات والتقييمات بالتوازي
+      final results = await Future.wait([
+        _dbService.getServicesForProvider(provider.id),
+        _dbService.getReviewsForProvider(provider.id),
+      ]);
+
+      // تعيين النتائج
+      _services = results[0] as List<ProviderServiceModel>;
+      _reviews = results[1] as List<ReviewModel>;
+
+      print("ProviderDetailsViewModel: Fetched ${_services.length} services and ${_reviews.length} reviews.");
+
     } catch (e) {
-      print("Error fetching provider services in ViewModel: $e");
-      _errorMessage = "Could not load services for this provider.";
-      _services = []; // قائمة فارغة في حالة الخطأ
+      print("Error fetching provider details in ViewModel: $e");
+      _errorMessage = "Could not load provider details.";
+      _services = [];
+      _reviews = []; // تفريغ القوائم عند الخطأ
     } finally {
       _isLoading = false;
-      notifyListeners(); // إخفاء التحميل وتحديث الواجهة بالبيانات (أو الخطأ)
+      notifyListeners(); // إخفاء التحميل وتحديث الواجهة
     }
   }
   // **********************************

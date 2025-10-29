@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:ahjizzzapp/services/db_service.dart';     // استيراد خدمة قاعدة البيانات
-import 'package:ahjizzzapp/services/auth_service.dart';    // استيراد خدمة المصادقة
+import 'package:ahjizzzapp/services/db_service.dart';
+import 'package:ahjizzzapp/services/auth_service.dart';
 
 class RateServiceViewModel extends ChangeNotifier {
   // --- الخدمات المطلوبة ---
@@ -13,8 +13,8 @@ class RateServiceViewModel extends ChangeNotifier {
   final String providerName; // اسم مزود الخدمة
 
   // --- الحالة (State) ---
-  double _rating = 0.0; // التقييم بالنجوم
-  final reviewController = TextEditingController(); // للنص
+  double _rating = 0.0;
+  final reviewController = TextEditingController();
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -24,7 +24,6 @@ class RateServiceViewModel extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   // --- Constructor ---
-  // يستقبل كل الخدمات والبيانات المطلوبة
   RateServiceViewModel({
     required this.bookingId,
     required this.providerId,
@@ -35,7 +34,6 @@ class RateServiceViewModel extends ChangeNotifier {
         _authService = authService;
   // -------------------------
 
-  // دالة لتحديث النجوم عند الضغط
   void setRating(double newRating) {
     if (_rating != newRating) {
       _rating = newRating;
@@ -45,26 +43,26 @@ class RateServiceViewModel extends ChangeNotifier {
 
   // --- دالة حفظ التقييم (مُحدثة) ---
   Future<bool> submitReview() async {
-    // التحقق من أن المستخدم اختار تقييم
     if (_rating == 0.0) {
       _errorMessage = "Please select a star rating.";
       notifyListeners();
-      return false; // فشل
+      return false;
     }
 
     _isLoading = true;
     _errorMessage = null;
-    notifyListeners(); // إظهار التحميل
+    notifyListeners();
 
     try {
-      // 1. جلب بيانات المستخدم الحالي
+      // 1. جلب بيانات المستخدم
       final String? userId = _authService.currentUser?.uid;
       if (userId == null) throw Exception("User not logged in.");
 
-      // جلب اسم المستخدم من Firestore (أو يمكنك استخدام الإيميل كحل بديل)
       final String userName = await _dbService.getUserName(userId) ?? "Anonymous";
 
-      // 2. استدعاء DbService لحفظ التقييم في مجموعة 'reviews'
+      // 2. استدعاء دالة submitReview (المُحدثة)
+      // هذه الدالة الآن تقوم بحفظ التقييم وتحديث حالة الحجز وتحديث متوسط التقييم
+      // كل هذا داخل Transaction واحدة.
       await _dbService.submitReview(
         bookingId: bookingId,
         providerId: providerId,
@@ -75,12 +73,10 @@ class RateServiceViewModel extends ChangeNotifier {
         reviewText: reviewController.text.trim(),
       );
 
-      // 3. تحديث حالة الحجز الأصلي إلى "rated"
-      // (حتى لا يظهر زر "Rate Service" مرة أخرى)
-      await _dbService.updateBookingStatus(bookingId, "rated");
+      // (لم نعد بحاجة لاستدعاء updateBookingStatus هنا، لأنها تمت في الـ Transaction)
 
       _isLoading = false;
-      notifyListeners(); // إخفاء التحميل
+      notifyListeners();
       return true; // نجح
 
     } catch (e) {
@@ -92,7 +88,6 @@ class RateServiceViewModel extends ChangeNotifier {
   }
   // ---------------------------------
 
-  // تنظيف الـ Controller
   @override
   void dispose() {
     reviewController.dispose();

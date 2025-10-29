@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 // استيراد كل الموديلات المطلوبة
@@ -6,11 +7,11 @@ import 'package:ahjizzzapp/models/service_provider.dart';
 import 'package:ahjizzzapp/models/top_rated_provider.dart';
 import 'package:ahjizzzapp/models/booking_model.dart';
 import 'package:ahjizzzapp/models/review_model.dart';
+import 'package:ahjizzzapp/models/discount_model.dart';
 import 'package:ahjizzzapp/viewmodels/provider_details_viewmodel.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class DbService {
-  // المراجع للمجموعات (Collections) في Firestore
+  // (مراجع الـ Collections كما هي)
   final CollectionReference _categoriesCollection =
   FirebaseFirestore.instance.collection('categories');
   final CollectionReference _providersCollection =
@@ -21,11 +22,11 @@ class DbService {
   FirebaseFirestore.instance.collection('users');
   final CollectionReference _reviewsCollection =
   FirebaseFirestore.instance.collection('reviews');
+  final CollectionReference _discountsCollection =
+  FirebaseFirestore.instance.collection('discounts');
 
 
-  // --- دوال جلب البيانات (لشاشة Home وغيرها) ---
-
-  // دالة جلب الفئات
+  // --- (كل الدوال السابقة كما هي) ---
   Future<List<QuickCategory>> getCategories() async {
     try {
       print("DbService: Fetching categories from Firestore...");
@@ -46,103 +47,35 @@ class DbService {
       return [];
     }
   }
-  Future<List<ServiceProvider>> searchProviders(String query) async {
-    // نتأكد أن البحث ليس فارغًا
-    if (query.isEmpty) {
-      return [];
-    }
 
-    // تحويل نص البحث لحروف صغيرة (للبحث غير الحساس للحالة)
-    String lowerCaseQuery = query.toLowerCase();
-    // (ملاحظة: البحث الفعلي في Firestore حساس للحالة. لحل احترافي، سنحتاج لتخزين
-    // نسخة 'lowercase_name' من الاسم في Firestore أو استخدام خدمة بحث خارجية.
-    // حاليًا، سنقوم ببحث "يبدأ بـ" (case-sensitive) كحل بسيط)
-
-    try {
-      print("DbService: Searching providers for query: $query");
-
-      // البحث عن المستندات حيث حقل 'name' يبدأ بنص البحث
-      QuerySnapshot snapshot = await _providersCollection
-          .where('name', isGreaterThanOrEqualTo: query)
-          .where('name', isLessThanOrEqualTo: query + '\uf8ff') // \uf8ff هي علامة لنهاية البحث
-          .limit(10) // جلب أول 10 نتائج فقط
-          .get();
-
-      // تحويل النتائج لموديل ServiceProvider
-      List<ServiceProvider> providers = snapshot.docs
-          .map((doc) => ServiceProvider.fromFirestore(doc))
-          .toList();
-
-      print("DbService: Found ${providers.length} providers for query '$query'.");
-      return providers;
-
-    } catch (e) {
-      print("Error searching providers: $e");
-      // هذا البحث سيحتاج فهرس (Index) على حقل 'name'
-      if (e is FirebaseException && e.code == 'failed-precondition') {
-        print("Firestore Index potentially missing for searchProviders query (on 'name' field). Check Firebase console.");
-      }
-      return [];
-    }
-  }
-  // دالة جلب الخدمات القريبة
   Future<List<ServiceProvider>> getServicesNearYou({required String city, int limit = 5}) async {
     try {
       print("DbService: Fetching nearby services for city: $city");
-
-      // **** 1. إضافة فلتر المدينة ****
-      Query query = _providersCollection
-          .where('city', isEqualTo: city); // <-- الفلتر الجديد
-
-      // (لا يزال الترتيب بالاسم، يمكن تغييره لاحقاً لـ "المسافة" الحقيقية)
+      Query query = _providersCollection.where('city', isEqualTo: city);
       query = query.orderBy('name').limit(limit);
-
       QuerySnapshot snapshot = await query.get();
-      // *****************************
-
-      List<ServiceProvider> providers = snapshot.docs.map((doc) {
-        // ... (كود الـ mapping كما هو)
-        Map<String, dynamic> data = doc.data() as Map<String, dynamic>? ?? {};
-        return ServiceProvider(
-          id: doc.id,
-          name: data['name'] ?? 'Unnamed Provider',
-          image: data['imageUrl'] ?? '',
-          rating: (data['rating'] as num?)?.toDouble() ?? 0.0,
-          price: data['priceIndicator'] ?? 'N/A',
-          distance: data['distance'] ?? 'Unknown distance',
-        );
-      }).toList();
-
+      List<ServiceProvider> providers = snapshot.docs.map((doc) => ServiceProvider.fromFirestore(doc)).toList();
       print("DbService: Fetched ${providers.length} nearby services for $city.");
       return providers;
-
     } catch (e) {
       print("Error fetching nearby services: $e");
-      // (قد نحتاج فهرس جديد)
       if (e is FirebaseException && e.code == 'failed-precondition') {
         print("Firestore Index potentially missing for city + name query. Check Firebase console.");
       }
       return [];
     }
   }
-  // ------------------------------------
 
-  // --- دالة جلب الأعلى تقييماً (مُعدلة) ---
   Future<List<TopRatedProvider>> getTopRatedProviders({required String city, int limit = 3}) async {
     try {
       print("DbService: Fetching top rated providers for city: $city");
-
-      // **** 2. إضافة فلتر المدينة ****
       QuerySnapshot snapshot = await _providersCollection
           .where('isTopRated', isEqualTo: true)
-          .where('city', isEqualTo: city) // <-- الفلتر الجديد
+          .where('city', isEqualTo: city)
           .orderBy('rating', descending: true)
           .limit(limit)
           .get();
-      // *****************************
-
       List<TopRatedProvider> topProviders = snapshot.docs.map((doc) {
-        // ... (كود الـ mapping كما هو)
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>? ?? {};
         return TopRatedProvider(
           id: doc.id,
@@ -154,12 +87,10 @@ class DbService {
           image: data['imageUrl'] ?? '',
         );
       }).toList();
-
       print("DbService: Fetched ${topProviders.length} top rated providers for $city.");
       return topProviders;
     } catch (e) {
       print("Error fetching top rated providers: $e");
-      // (قد نحتاج فهرس جديد)
       if (e is FirebaseException && e.code == 'failed-precondition') {
         print("Firestore Index potentially missing for isTopRated + city + rating query. Check Firebase console.");
       }
@@ -167,13 +98,11 @@ class DbService {
     }
   }
 
-  // دالة جلب المزودين حسب الفئة
   Future<List<ServiceProvider>> getProvidersByCategory(String categoryName, {String? sortBy, int limit = 10}) async {
     try {
       print("DbService: Fetching providers for category: $categoryName");
       Query query = _providersCollection
           .where('category', isEqualTo: categoryName);
-
       if (sortBy == 'Top Rated') {
         query = query.orderBy('rating', descending: true);
       } else {
@@ -181,22 +110,9 @@ class DbService {
       }
       query = query.limit(limit);
       QuerySnapshot snapshot = await query.get();
-
-      List<ServiceProvider> providers = snapshot.docs.map((doc) {
-        Map<String, dynamic> data = doc.data() as Map<String, dynamic>? ?? {};
-        return ServiceProvider(
-          id: doc.id,
-          name: data['name'] ?? 'Unnamed Provider',
-          image: data['imageUrl'] ?? '',
-          rating: (data['rating'] as num?)?.toDouble() ?? 0.0,
-          price: data['priceIndicator'] ?? 'N/A',
-          distance: data['distance'] ?? 'Unknown distance',
-        );
-      }).toList();
-
+      List<ServiceProvider> providers = snapshot.docs.map((doc) => ServiceProvider.fromFirestore(doc)).toList();
       print("DbService: Fetched ${providers.length} providers for category $categoryName.");
       return providers;
-
     } catch (e) {
       print("Error fetching providers by category '$categoryName': $e");
       if (e is FirebaseException && e.code == 'failed-precondition') {
@@ -206,16 +122,10 @@ class DbService {
     }
   }
 
-  // دالة جلب الخدمات الخاصة بمزود خدمة معين
   Future<List<ProviderServiceModel>> getServicesForProvider(String providerId) async {
     try {
       print("DbService: Fetching services for provider ID: $providerId");
-      QuerySnapshot snapshot = await _providersCollection
-          .doc(providerId)
-          .collection('services')
-          .orderBy('name')
-          .get();
-
+      QuerySnapshot snapshot = await _providersCollection.doc(providerId).collection('services').orderBy('name').get();
       List<ProviderServiceModel> services = snapshot.docs.map((doc) {
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>? ?? {};
         return ProviderServiceModel(
@@ -225,88 +135,51 @@ class DbService {
           duration: data['duration'] ?? 'Unknown',
         );
       }).toList();
-
       print("DbService: Fetched ${services.length} services for provider $providerId.");
       return services;
-
     } catch (e) {
       print("Error fetching services for provider $providerId: $e");
       return [];
     }
   }
 
-  // --- دوال المستخدمين (User Profile) ---
-
-  // (مُعدلة: لإضافة حقول افتراضية فارغة)
   Future<void> createUserProfile({required String uid, required String name, required String email}) async {
     try {
       await _usersCollection.doc(uid).set({
-        'name': name,
-        'email': email,
-        'createdAt': FieldValue.serverTimestamp(),
-        'phone': '', // <-- إضافة حقل هاتف فارغ
-        'city': '',  // <-- إضافة حقل مدينة فارغ
-        'bio': '',   // <-- إضافة حقل نبذة فارغ
+        'name': name, 'email': email, 'createdAt': FieldValue.serverTimestamp(),
+        'phone': '', 'city': '', 'bio': '',
       }, SetOptions(merge: true));
       print("DbService: User profile created/updated for UID: $uid");
     } catch (e) { print("Error creating/updating user profile: $e"); throw Exception("Could not save user profile."); }
   }
 
-  // دالة جلب كل بيانات المستخدم
   Future<Map<String, dynamic>?> getUserProfile(String uid) async {
     try {
       DocumentSnapshot doc = await _usersCollection.doc(uid).get();
-      if (doc.exists) {
-        return doc.data() as Map<String, dynamic>?; // إرجاع كل البيانات
-      }
-      print("DbService: User profile not found for UID: $uid");
-      return null;
-    } catch (e) {
-      print("Error fetching user profile: $e");
-      return null;
-    }
+      if (doc.exists) { return doc.data() as Map<String, dynamic>?; }
+      print("DbService: User profile not found for UID: $uid"); return null;
+    } catch (e) { print("Error fetching user profile: $e"); return null; }
   }
 
-  // تعديل دالة تحديث بيانات المستخدم
-  Future<void> updateUserProfile(String uid, {
-    required String name,
-    String? phone,
-    String? city,
-    String? bio,
-  }) async {
+  Future<void> updateUserProfile(String uid, {required String name, String? phone, String? city, String? bio}) async {
     try {
-      Map<String, dynamic> dataToUpdate = {
-        'name': name,
-        if (phone != null) 'phone': phone,
-        if (city != null) 'city': city,
-        if (bio != null) 'bio': bio,
-      };
-
+      Map<String, dynamic> dataToUpdate = {'name': name,};
+      if (phone != null) dataToUpdate['phone'] = phone;
+      if (city != null) dataToUpdate['city'] = city;
+      if (bio != null) dataToUpdate['bio'] = bio;
       await _usersCollection.doc(uid).update(dataToUpdate);
       print("DbService: User profile updated for UID: $uid");
-
-    } catch (e) {
-      print("Error updating user profile: $e");
-      throw Exception("Could not update profile.");
-    }
+    } catch (e) { print("Error updating user profile: $e"); throw Exception("Could not update profile."); }
   }
 
-  // دالة جلب اسم المستخدم (تستخدمها ViewModels أخرى)
   Future<String?> getUserName(String uid) async {
     try {
       DocumentSnapshot doc = await _usersCollection.doc(uid).get();
-      if (doc.exists) {
-        Map<String, dynamic> data = doc.data() as Map<String, dynamic>? ?? {};
-        return data['name'] as String?;
-      }
+      if (doc.exists) { Map<String, dynamic> data = doc.data() as Map<String, dynamic>? ?? {}; return data['name'] as String?; }
       print("DbService: User profile not found for UID: $uid"); return null;
     } catch (e) { print("Error fetching user name: $e"); return null; }
   }
 
-
-  // --- دوال الحجوزات (Bookings) ---
-
-  // دالة لإنشاء حجز جديد
   Future<DocumentReference> createBooking({
     required String userId,
     required String providerId,
@@ -340,7 +213,6 @@ class DbService {
     } catch (e) { print("Error creating booking: $e"); throw Exception("Could not create booking."); }
   }
 
-  // دالة لجلب حجوزات المستخدم
   Future<List<BookingModel>> getUserBookings(String userId) async {
     try {
       print("DbService: Fetching bookings for user: $userId");
@@ -350,30 +222,25 @@ class DbService {
     } catch (e) { print("Error fetching user bookings: $e"); return []; }
   }
 
-  // دالة جلب المواعيد المحجوزة
   Future<List<String>> getBookedTimeSlots(String providerId, DateTime date) async {
     try {
       print("DbService: Fetching booked slots for provider $providerId on $date");
       final DateTime startOfDay = DateTime(date.year, date.month, date.day);
       final DateTime endOfDay = startOfDay.add(Duration(days: 1));
-
       QuerySnapshot snapshot = await _bookingsCollection
           .where('providerId', isEqualTo: providerId)
           .where('status', isEqualTo: 'upcoming')
           .where('bookingTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
           .where('bookingTime', isLessThan: Timestamp.fromDate(endOfDay))
           .get();
-
       List<String> bookedSlots = snapshot.docs.map((doc) {
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>? ?? {};
         Timestamp bookingTimestamp = data['bookingTime'] as Timestamp;
         DateTime bookingTime = bookingTimestamp.toDate();
         return DateFormat('h:mm a').format(bookingTime);
       }).toList();
-
       print("DbService: Found ${bookedSlots.length} booked slots: $bookedSlots");
       return bookedSlots;
-
     } catch (e) {
       print("Error fetching booked slots: $e");
       if (e is FirebaseException && e.code == 'failed-precondition') {
@@ -385,7 +252,7 @@ class DbService {
 
   // --- دوال التقييمات (Reviews) ---
 
-  // دالة حفظ تقييم جديد
+  // **** دالة حفظ التقييم (مُحدثة باستخدام Transaction) ****
   Future<void> submitReview({
     required String bookingId,
     required String providerId,
@@ -395,27 +262,72 @@ class DbService {
     required double rating,
     required String reviewText,
   }) async {
+
+    // 1. تحديد المراجع للمستندات اللي هنشتغل عليها
+    final DocumentReference providerDocRef = _providersCollection.doc(providerId);
+    final DocumentReference reviewDocRef = _reviewsCollection.doc(); // مستند تقييم جديد
+    final DocumentReference bookingDocRef = _bookingsCollection.doc(bookingId); // مستند الحجز
+
+    print("DbService: Starting review submission transaction for booking: $bookingId");
+
+    // 2. استخدام Transaction لضمان تنفيذ كل العمليات معًا
     try {
-      print("DbService: Submitting review for booking: $bookingId");
-      await _reviewsCollection.add({
-        'bookingId': bookingId,
-        'providerId': providerId,
-        'providerName': providerName,
-        'userId': userId,
-        'userName': userName,
-        'rating': rating,
-        'reviewText': reviewText,
-        'createdAt': FieldValue.serverTimestamp(),
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+
+        // 2a. قراءة البيانات الحالية لمزود الخدمة
+        DocumentSnapshot providerSnapshot = await transaction.get(providerDocRef);
+        if (!providerSnapshot.exists) {
+          throw Exception("Provider document not found!");
+        }
+
+        Map<String, dynamic> providerData = providerSnapshot.data() as Map<String, dynamic>? ?? {};
+
+        // جلب التقييم القديم وعدد المراجعات (مع قيم افتراضية آمنة)
+        double currentRating = (providerData['rating'] as num?)?.toDouble() ?? 0.0;
+        int currentReviewsCount = (providerData['reviews'] as int?) ?? 0;
+
+        // 2b. حساب المتوسط الجديد
+        // (التقييم القديم * عدد المراجعات القديم) + التقييم الجديد / (عدد المراجعات + 1)
+        double newRating =
+            ((currentRating * currentReviewsCount) + rating) / (currentReviewsCount + 1);
+        int newReviewsCount = currentReviewsCount + 1;
+
+        // 2c. كتابة التقييم الجديد في مجموعة 'reviews'
+        transaction.set(reviewDocRef, {
+          'bookingId': bookingId,
+          'providerId': providerId,
+          'providerName': providerName,
+          'userId': userId,
+          'userName': userName,
+          'rating': rating,
+          'reviewText': reviewText,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        // 2d. تحديث مستند مزود الخدمة بالتقييم الجديد وعدد المراجعات الجديد
+        transaction.update(providerDocRef, {
+          'rating': newRating, // المتوسط الجديد
+          'reviews': newReviewsCount, // العدد الجديد
+        });
+
+        // 2e. تحديث حالة الحجز إلى 'rated'
+        transaction.update(bookingDocRef, {
+          'status': 'rated',
+        });
+
       });
-      print("DbService: Review submitted successfully.");
-      // TODO: (Advanced) Update average rating on serviceProvider document
+
+      print("DbService: Review transaction completed successfully.");
+
     } catch (e) {
-      print("Error submitting review: $e");
+      print("Error submitting review transaction: $e");
+      // إذا فشلت الـ Transaction، Firestore بيعمل rollback تلقائيًا
       throw Exception("Could not submit review.");
     }
   }
+  // **********************************
 
-  // دالة تحديث حالة الحجز
+  // (دالة updateBookingStatus كما هي - للتعامل مع الإلغاء)
   Future<void> updateBookingStatus(String bookingId, String newStatus) async {
     try {
       print("DbService: Updating booking $bookingId status to $newStatus");
@@ -429,7 +341,7 @@ class DbService {
     }
   }
 
-  // دالة جلب تقييمات المستخدم
+  // (دالة getReviewsByUser كما هي)
   Future<List<ReviewModel>> getReviewsByUser(String userId, {int limit = 20}) async {
     try {
       print("DbService: Fetching reviews for user ID: $userId");
@@ -452,7 +364,7 @@ class DbService {
     }
   }
 
-  // دالة جلب تقييمات المزود
+  // (دالة getReviewsForProvider كما هي)
   Future<List<ReviewModel>> getReviewsForProvider(String providerId, {int limit = 5}) async {
     try {
       print("DbService: Fetching reviews for provider ID: $providerId");
@@ -475,13 +387,13 @@ class DbService {
     }
   }
 
-  // دالة جلب مزود خدمة واحد بالـ ID
+  // (دالة getProviderById كما هي)
   Future<ServiceProvider?> getProviderById(String providerId) async {
     try {
       print("DbService: Fetching provider by ID: $providerId");
       DocumentSnapshot doc = await _providersCollection.doc(providerId).get();
       if (doc.exists) {
-        return ServiceProvider.fromFirestore(doc); // استخدام الـ factory constructor
+        return ServiceProvider.fromFirestore(doc);
       } else {
         print("DbService: Provider not found for ID: $providerId");
         return null;
@@ -492,8 +404,147 @@ class DbService {
     }
   }
 
+  // (دالة searchProviders كما هي)
+  Future<List<ServiceProvider>> searchProviders(String query) async {
+    if (query.isEmpty) {
+      return [];
+    }
+    try {
+      print("DbService: Searching providers for query: $query");
+      QuerySnapshot snapshot = await _providersCollection
+          .where('name', isGreaterThanOrEqualTo: query)
+          .where('name', isLessThanOrEqualTo: query + '\uf8ff')
+          .limit(10)
+          .get();
+      List<ServiceProvider> providers = snapshot.docs
+          .map((doc) => ServiceProvider.fromFirestore(doc))
+          .toList();
+      print("DbService: Found ${providers.length} providers for query '$query'.");
+      return providers;
+    } catch (e) {
+      print("Error searching providers: $e");
+      if (e is FirebaseException && e.code == 'failed-precondition') {
+        print("Firestore Index potentially missing for searchProviders query (on 'name' field). Check Firebase console.");
+      }
+      return [];
+    }
+  }
+
+  // (دالة validateDiscountCode كما هي)
+  Future<DiscountModel?> validateDiscountCode(String code) async {
+    try {
+      print("DbService: Validating discount code: $code");
+      DocumentSnapshot doc = await _discountsCollection.doc(code).get();
+      if (doc.exists) {
+        DiscountModel discount = DiscountModel.fromFirestore(doc);
+        if (discount.isActive) {
+          print("DbService: Code '$code' is valid. Discount: ${discount.discountPercentage}%");
+          return discount;
+        } else {
+          print("DbService: Code '$code' is no longer active.");
+          return null;
+        }
+      } else {
+        print("DbService: Code '$code' does not exist.");
+        return null;
+      }
+    } catch (e) {
+      print("Error validating discount code: $e");
+      return null;
+    }
+  }
+  Future<String?> getUserRole(String uid) async {
+    try {
+      DocumentSnapshot doc = await _usersCollection.doc(uid).get();
+      if (doc.exists) {
+        Map<String, dynamic> data = doc.data() as Map<String, dynamic>? ?? {};
+        // الدور الافتراضي يكون 'user' إذا لم يكن الحقل موجودًا
+        return data['role'] as String? ?? 'user';
+      }
+      return 'guest'; // إذا لم يجد المستخدم (رغم أنه يجب أن يكون موجودًا بعد اللوجين)
+    } catch (e) {
+      print("Error fetching user role: $e");
+      return 'user';
+    }
+  }
+  // ************
+  Future<void> addServiceProvider({
+    required String name,
+    required String category,
+    required String city,
+    required String imageUrl,
+    required String priceIndicator,
+    required String distance,
+    double rating = 0.0, // تقييم مبدئي
+    int reviews = 0,     // عدد مراجعات مبدئي
+    bool isTopRated = false, // افتراضي
+  }) async {
+    try {
+      print("DbService: Admin adding new provider: $name");
+      await _providersCollection.add({
+        'name': name,
+        'category': category,
+        'city': city,
+        'imageUrl': imageUrl,
+        'priceIndicator': priceIndicator,
+        'distance': distance,
+        'rating': rating,
+        'reviews': reviews,
+        'isTopRated': isTopRated,
+        'createdAt': FieldValue.serverTimestamp(), // اختياري: لمعرفة وقت الإضافة
+      });
+      print("DbService: Provider added successfully.");
+    } catch (e) {
+      print("Error adding provider: $e");
+      throw Exception("Could not add provider.");
+    }
+  }
+  // **********************************************
+  Future<void> addServiceToProvider({
+    required String providerId,
+    required String serviceName,
+    required String price,
+    required String duration,
+  }) async {
+    try {
+      print("DbService: Admin adding service '$serviceName' to $providerId");
+      // الوصول للـ Subcollection وإضافة مستند جديد
+      await _providersCollection
+          .doc(providerId)
+          .collection('services')
+          .add({
+        'name': serviceName,
+        'price': price,
+        'duration': duration,
+      });
+      print("DbService: Service added successfully.");
+    } catch (e) {
+      print("Error adding service: $e");
+      throw Exception("Could not add service.");
+    }
+  }
+  // **********************************
+
+  // **** دالة جديدة: حذف خدمة من مزود ****
+  Future<void> deleteServiceFromProvider({
+    required String providerId,
+    required String serviceId,
+  }) async {
+    try {
+      print("DbService: Admin deleting service '$serviceId' from $providerId");
+      await _providersCollection
+          .doc(providerId)
+          .collection('services')
+          .doc(serviceId) // تحديد مستند الخدمة
+          .delete(); // حذفه
+      print("DbService: Service deleted successfully.");
+    } catch (e) {
+      print("Error deleting service: $e");
+      throw Exception("Could not delete service.");
+    }
+  }
+  // **********************************
   // --- الدوال المساعدة (Helper Functions) ---
-  // (لتحويل النصوص من Firestore إلى أيقونات وألوان)
   IconData _getIconFromString(String iconName) {
     switch (iconName.toLowerCase()) {
       case 'cut': return Icons.content_cut;

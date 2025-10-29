@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:easy_localization/easy_localization.dart'; // استيراد المكتبة
+import 'package:easy_localization/easy_localization.dart';
 import 'package:ahjizzzapp/viewmodels/home_viewmodel.dart';
+import 'package:ahjizzzapp/viewmodels/admin_viewmodel.dart'; // <-- استيراد AdminViewModel
 import 'package:ahjizzzapp/shared/app_colors.dart';
 import 'package:ahjizzzapp/views/notifications_view.dart';
 import 'package:ahjizzzapp/views/service_list_view.dart';
 import 'package:ahjizzzapp/views/provider_details_view.dart';
 import 'package:ahjizzzapp/models/service_provider.dart';
 import 'package:ahjizzzapp/models/top_rated_provider.dart';
+// (لا نحتاج استيراد search_view.dart هنا لأننا نستخدم المسار)
 
 class HomeView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final viewModel = context.watch<HomeViewModel>();
+    final adminViewModel = context.watch<AdminViewModel>(); // <-- الوصول لـ AdminViewModel
 
     return Scaffold(
       appBar: AppBar(
@@ -21,23 +24,30 @@ class HomeView extends StatelessWidget {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // **** 1. السطر المُعدل ****
             Text(
-              // استخدام namedArgs لتمرير الاسم للمتغير {name}
               "home_hello".tr(namedArgs: {'name': viewModel.userName}),
-              style: TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20),
+              style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 20),
             ),
-            // ************************
             Text(
-              "home_subtitle".tr(), // "What service do you need...?"
+              "home_subtitle".tr(),
               style: TextStyle(color: Colors.grey[600], fontSize: 14),
             ),
           ],
         ),
         actions: [
+          // **** 1. تعديل زر الأدمن ****
+          if (adminViewModel.isAdmin) // <-- شرط الإظهار
+            IconButton(
+              icon: Icon(Icons.add_circle, color: kPrimaryColor, size: 28), // تكبير الأيقونة
+              onPressed: () {
+                print("Admin: Navigating to Add New Service Screen");
+                // الانتقال للشاشة الجديدة باستخدام المسار (Route)
+                Navigator.of(context).pushNamed('/add-provider');
+              },
+              tooltip: "Add New Service",
+            ),
+          // ***************************
+
           IconButton(
             icon: Icon(Icons.search, color: Colors.grey[700]),
             onPressed: () {
@@ -45,8 +55,7 @@ class HomeView extends StatelessWidget {
             },
           ),
           IconButton(
-            icon: Icon(Icons.notifications_none_outlined,
-                color: Colors.grey[700]),
+            icon: Icon(Icons.notifications_none_outlined, color: Colors.grey[700]),
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(builder: (context) => NotificationsView()),
@@ -57,10 +66,15 @@ class HomeView extends StatelessWidget {
         ],
       ),
       backgroundColor: kLightBackgroundColor,
+      // (باقي كود الـ body والـ RefreshIndicator كما هو)
       body: viewModel.isLoading
           ? Center(child: CircularProgressIndicator(color: kPrimaryColor))
           : RefreshIndicator(
-        onRefresh: viewModel.fetchData,
+        onRefresh: () async {
+          // تحديث بيانات الهوم والأدمن معاً
+          await viewModel.fetchData();
+          await adminViewModel.checkUserRole(); // (اختياري: للتأكد من الدور)
+        },
         color: kPrimaryColor,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -68,16 +82,12 @@ class HomeView extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildSearchAndFilters(context, viewModel),
-
               _buildSectionHeader(context, "home_section_nearby".tr(), "home_see_all".tr()),
               _buildServicesNearYouList(context, viewModel),
-
               _buildSectionHeader(context, "home_section_categories".tr(), null),
               _buildCategoriesList(context, viewModel),
-
               _buildSectionHeader(context, "home_section_top_rated".tr(), null),
               _buildTopRatedList(context, viewModel),
-
               _buildPromoBanner(context),
             ],
           ),
@@ -86,7 +96,7 @@ class HomeView extends StatelessWidget {
     );
   }
 
-  // --- (دوال مساعدة لتقسيم الواجهة) ---
+  // --- (كل الدوال المساعدة لبناء الواجهة كما هي) ---
 
   Widget _buildSearchAndFilters(BuildContext context, HomeViewModel viewModel) {
     return Padding(
@@ -101,19 +111,13 @@ class HomeView extends StatelessWidget {
               child: TextField(
                 enabled: false,
                 decoration: InputDecoration(
-                  hintText: "home_search_hint".tr(), // "Search for services..."
+                  hintText: "home_search_hint".tr(),
                   prefixIcon: Icon(Icons.search, color: Colors.grey),
                   suffixIcon: Icon(Icons.filter_list, color: kPrimaryColor),
                   filled: true,
                   fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30),
-                    borderSide: BorderSide.none,
-                  ),
-                  disabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30),
-                    borderSide: BorderSide.none,
-                  ),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none,),
+                  disabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none,),
                 ),
               ),
             ),
@@ -121,9 +125,9 @@ class HomeView extends StatelessWidget {
           SizedBox(height: 12),
           Row(
             children: [
-              _buildCityFilterButton(context, viewModel), // (فلتر المدينة)
+              _buildCityFilterButton(context, viewModel),
               SizedBox(width: 10),
-              _buildFilterChip(context, Icons.calendar_today, "home_filter_date".tr(), false), // "Today"
+              _buildFilterChip(context, Icons.calendar_today, "home_filter_date".tr(), false),
             ],
           )
         ],
@@ -131,7 +135,6 @@ class HomeView extends StatelessWidget {
     );
   }
 
-  // (دالة الفلتر العادية)
   Widget _buildFilterChip(BuildContext context, IconData icon, String label, bool isActive) {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -144,16 +147,12 @@ class HomeView extends StatelessWidget {
         children: [
           Icon(icon, size: 16, color: isActive ? Colors.white : Colors.grey[700]),
           SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(color: isActive ? Colors.white : Colors.grey[700]),
-          ),
+          Text(label, style: TextStyle(color: isActive ? Colors.white : Colors.grey[700])),
         ],
       ),
     );
   }
 
-  // (دالة فلتر المدينة)
   Widget _buildCityFilterButton(BuildContext context, HomeViewModel viewModel) {
     return PopupMenuButton<String>(
       onSelected: (String newCity) {
@@ -161,18 +160,12 @@ class HomeView extends StatelessWidget {
       },
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: kPrimaryColor,
-          borderRadius: BorderRadius.circular(30),
-        ),
+        decoration: BoxDecoration(color: kPrimaryColor, borderRadius: BorderRadius.circular(30)),
         child: Row(
           children: [
             Icon(Icons.location_on, size: 16, color: Colors.white),
             SizedBox(width: 6),
-            Text(
-              viewModel.selectedCity,
-              style: TextStyle(color: Colors.white),
-            ),
+            Text(viewModel.selectedCity, style: TextStyle(color: Colors.white)),
             Icon(Icons.arrow_drop_down, size: 20, color: Colors.white),
           ],
         ),
@@ -188,39 +181,28 @@ class HomeView extends StatelessWidget {
     );
   }
 
-  // (دالة عناوين الأقسام)
   Widget _buildSectionHeader(BuildContext context, String title, String? actionText) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            title,
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
+          Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           if (actionText != null)
             InkWell(
               onTap: () { print("$title - See All tapped"); },
-              child: Text(
-                actionText,
-                style: TextStyle(color: kPrimaryColor, fontWeight: FontWeight.w600),
-              ),
+              child: Text(actionText, style: TextStyle(color: kPrimaryColor, fontWeight: FontWeight.w600)),
             ),
         ],
       ),
     );
   }
 
-  // (دالة قائمة "Services Near You")
   Widget _buildServicesNearYouList(BuildContext context, HomeViewModel viewModel) {
     if (viewModel.servicesNearYou.isEmpty && !viewModel.isLoading) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10),
-        child: Text(
-            "home_no_nearby".tr(namedArgs: {'city': viewModel.selectedCity}), // "No nearby services..."
-            style: TextStyle(color: Colors.grey[600])
-        ),
+        child: Text("home_no_nearby".tr(namedArgs: {'city': viewModel.selectedCity}), style: TextStyle(color: Colors.grey[600])),
       );
     }
     return Container(
@@ -254,24 +236,17 @@ class HomeView extends StatelessWidget {
                       children: [
                         Image.network(
                           service.image.isNotEmpty ? service.image : "https://via.placeholder.com/200x120?text=No+Image",
-                          height: 120,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
+                          height: 120, width: double.infinity, fit: BoxFit.cover,
                           errorBuilder:(context, error, stackTrace) => Container(
-                            height: 120,
-                            color: Colors.grey[200],
+                            height: 120, color: Colors.grey[200],
                             child: Center(child: Icon(Icons.storefront, color: Colors.grey[500], size: 40)),
                           ) ,
                         ),
                         Positioned(
-                            top: 8,
-                            right: 8,
+                            top: 8, right: 8,
                             child: Container(
                               padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
+                              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
                               child: Text( service.price, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12) ),
                             )
                         ),
@@ -312,7 +287,6 @@ class HomeView extends StatelessWidget {
     );
   }
 
-  // (دالة قائمة "Categories")
   Widget _buildCategoriesList(BuildContext context, HomeViewModel viewModel) {
     if (viewModel.quickCategories.isEmpty && !viewModel.isLoading) {
       return Padding(
@@ -353,7 +327,7 @@ class HomeView extends StatelessWidget {
                   ),
                   SizedBox(height: 6),
                   Text(
-                    category.name, // (ده اسم الفئة من Firestore، ممكن نترجمه لاحقًا)
+                    category.name,
                     style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                     textAlign: TextAlign.center,
                   ),
@@ -366,7 +340,6 @@ class HomeView extends StatelessWidget {
     );
   }
 
-  // (دالة قائمة "Top Rated")
   Widget _buildTopRatedList(BuildContext context, HomeViewModel viewModel) {
     if (viewModel.topRatedProviders.isEmpty && !viewModel.isLoading) {
       return Padding(
@@ -447,7 +420,7 @@ class HomeView extends StatelessWidget {
                           ),
                         );
                       },
-                      child: Text("home_book_now".tr()), // "Book Now"
+                      child: Text("home_book_now".tr()),
                       style: ElevatedButton.styleFrom(
                           backgroundColor: kPrimaryColor,
                           foregroundColor: Colors.white,
@@ -465,7 +438,6 @@ class HomeView extends StatelessWidget {
     );
   }
 
-  // (دالة بانر العرض)
   Widget _buildPromoBanner(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16,16,16, 24),
@@ -493,17 +465,17 @@ class HomeView extends StatelessWidget {
                         borderRadius: BorderRadius.circular(20)
                     ),
                     child: Text(
-                      "home_promo_offer".tr(), // "NEW USER OFFER"
+                      "home_promo_offer".tr(),
                       style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
                     ),
                   ),
                   SizedBox(height: 8),
                   Text(
-                    "home_promo_title".tr(), // "Get 30% Off"
+                    "home_promo_title".tr(),
                     style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   Text(
-                    "home_promo_subtitle".tr(), // "On your first booking..."
+                    "home_promo_subtitle".tr(),
                     style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 14),
                   ),
                 ],
