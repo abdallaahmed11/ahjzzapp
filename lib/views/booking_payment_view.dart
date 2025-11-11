@@ -1,5 +1,9 @@
+import 'package:ahjizzzapp/views/payment_screens/instapay_view.dart';
+import 'package:ahjizzzapp/views/payment_screens/paypal_view.dart';
+import 'package:ahjizzzapp/views/payment_screens/vodafone_cash_view.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+// (باقي الـ imports كما هي)
 import 'package:ahjizzzapp/viewmodels/booking_payment_viewmodel.dart';
 import 'package:ahjizzzapp/models/service_provider.dart';
 import 'package:ahjizzzapp/viewmodels/provider_details_viewmodel.dart';
@@ -8,13 +12,15 @@ import 'package:ahjizzzapp/services/auth_service.dart';
 import 'package:ahjizzzapp/services/db_service.dart';
 import 'package:ahjizzzapp/views/booking_confirmation_view.dart';
 
+import 'credit_card_payment_view.dart';
+// (لم نعد بحاجة لـ CreditCardPaymentView)
+
 class BookingPaymentView extends StatelessWidget {
-  // استقبال البيانات اللازمة من الشاشة السابقة
+  // (الـ constructor كما هو)
   final ServiceProvider provider;
   final ProviderServiceModel service;
   final DateTime selectedDate;
   final String selectedTime;
-
   const BookingPaymentView({
     Key? key,
     required this.provider,
@@ -25,7 +31,6 @@ class BookingPaymentView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // توفير الـ ViewModel لهذه الشاشة
     return ChangeNotifierProvider(
       create: (ctx) => BookingPaymentViewModel(
         ctx.read<DbService>(),
@@ -53,18 +58,11 @@ class BookingPaymentView extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // 1. ملخص الحجز (مُعدل لعرض الخصم)
                   _buildBookingSummaryCard(viewModel),
                   const SizedBox(height: 24),
-
-                  // 2. الملاحظات (كما هي)
                   _buildTextField(viewModel.notesController, 'Add special requests or notes...'),
                   const SizedBox(height: 16),
-
-                  // 3. كود الخصم (مُعدل)
-                  _buildDiscountField(context, viewModel), // <-- تم تعديل الدالة المساعدة
-
-                  // (عرض رسالة الخصم)
+                  _buildDiscountField(context, viewModel),
                   if (viewModel.discountMessage != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 8.0, left: 8.0),
@@ -72,7 +70,6 @@ class BookingPaymentView extends StatelessWidget {
                         viewModel.discountMessage!,
                         textAlign: TextAlign.start,
                         style: TextStyle(
-                          // اللون أخضر لو الخصم نجح، أحمر لو فشل
                           color: viewModel.appliedDiscount != null ? kPrimaryColor : Colors.red,
                           fontSize: 14,
                         ),
@@ -80,9 +77,9 @@ class BookingPaymentView extends StatelessWidget {
                     ),
                   const SizedBox(height: 24),
 
-                  // 4. طرق الدفع (كما هي)
                   const Text('Payment Method', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
+
                   _buildPaymentOption(
                     context: context,
                     title: 'Pay on Arrival',
@@ -90,17 +87,17 @@ class BookingPaymentView extends StatelessWidget {
                     groupValue: viewModel.selectedPaymentMethod,
                     onChanged: (method) => viewModel.selectPaymentMethod(method!),
                   ),
+
                   _buildPaymentOption(
                     context: context,
                     title: 'Pay Online',
-                    subtitle: 'Credit/Debit Card (Coming Soon)',
+                    subtitle: 'Credit Card, Vodafone Cash, InstaPay', // <-- تعديل النص
                     value: PaymentMethod.payOnline,
                     groupValue: viewModel.selectedPaymentMethod,
-                    onChanged: null, // تعطيل الدفع أونلاين حالياً
+                    onChanged: (method) => viewModel.selectPaymentMethod(method!),
                   ),
-                  const SizedBox(height: 24),
 
-                  // رسالة الخطأ العام
+                  const SizedBox(height: 24),
                   if (viewModel.errorMessage != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12.0),
@@ -113,42 +110,53 @@ class BookingPaymentView extends StatelessWidget {
                 ],
               ),
             ),
-            // زر تأكيد الحجز (كما هو)
+
+            // **** 2. تعديل الزر السفلي ****
             bottomNavigationBar: Padding(
               padding: const EdgeInsets.all(16.0),
               child: ElevatedButton(
                 onPressed: viewModel.isLoading
-                    ? null
+                    ? null // تعطيل الزر أثناء تحميل أي عملية
                     : () async {
-                  bool success = await viewModel.confirmBooking();
-                  if (success && context.mounted) {
-                    // الانتقال لشاشة التأكيد
-                    Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(
-                        builder: (context) =>  BookingConfirmationView(),
-                        settings: const RouteSettings(name: '/booking-confirmation'),
-                      ),
-                          (route) => route.settings.name == '/dashboard' || route.isFirst,
-                    );
+                  // تحديد الإجراء بناءً على طريقة الدفع
+                  if (viewModel.selectedPaymentMethod == PaymentMethod.payOnline) {
+                    // 1. إذا اختار الدفع أونلاين، اظهر النافذة المنبثقة
+                    _showPaymentOptionsSheet(context, viewModel);
+                  } else {
+                    // 2. إذا اختار الدفع عند الوصول، أكد الحجز مباشرة
+                    bool success = await viewModel.submitPayOnArrivalBooking();
+                    if (success && context.mounted) {
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(
+                          builder: (context) =>  BookingConfirmationView(),
+                          settings: const RouteSettings(name: '/booking-confirmation'),
+                        ),
+                            (route) => route.settings.name == '/dashboard' || route.isFirst,
+                      );
+                    }
                   }
                 },
-                style: ElevatedButton.styleFrom( // استخدام الـ Theme
+                style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
                 child: viewModel.isLoading
                     ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : const Text('Confirm Booking'),
+                    : Text(
+                  // تغيير النص بناءً على طريقة الدفع
+                    viewModel.selectedPaymentMethod == PaymentMethod.payOnline
+                        ? 'Proceed to Payment (\$${viewModel.totalPrice.toStringAsFixed(2)})'
+                        : 'Confirm Booking'
+                ),
               ),
             ),
+            // **********************************
           );
         },
       ),
     );
   }
 
-  // --- الدوال المساعدة ---
-
-  // **** كرت ملخص الحجز (مُعدل) ****
+  // --- (كل الدوال المساعدة كما هي) ---
   Widget _buildBookingSummaryCard(BookingPaymentViewModel viewModel) {
     return Card(
       elevation: 2,
@@ -166,50 +174,42 @@ class BookingPaymentView extends StatelessWidget {
             _buildSummaryRow('Date:', viewModel.formattedDate),
             _buildSummaryRow('Time:', viewModel.formattedTime),
             const Divider(height: 20),
-
-            // --- عرض السعر والخصم ---
             _buildSummaryRow(
               'Price:',
-              '\$${viewModel.originalPrice.toStringAsFixed(2)}', // السعر الأصلي
+              '\$${viewModel.originalPrice.toStringAsFixed(2)}',
             ),
-
-            // (عرض الخصم فقط إذا تم تطبيقه)
             if (viewModel.appliedDiscount != null)
               _buildSummaryRow(
                 'Discount (${viewModel.appliedDiscount!.discountPercentage.toInt()}%):',
-                '-\$${viewModel.discountAmount.toStringAsFixed(2)}', // قيمة الخصم
-                color: kPrimaryColor, // باللون الأخضر
+                '-\$${viewModel.discountAmount.toStringAsFixed(2)}',
+                color: kPrimaryColor,
               ),
-
             const SizedBox(height: 8),
-            // السعر الإجمالي
             _buildSummaryRow(
               'Total Price:',
-              '\$${viewModel.totalPrice.toStringAsFixed(2)}', // السعر النهائي
+              '\$${viewModel.totalPrice.toStringAsFixed(2)}',
               isBold: true,
-              size: 18, // خط أكبر للسعر النهائي
+              size: 18,
             ),
-            // ------------------------
           ],
         ),
       ),
     );
   }
 
-  // (دالة بناء سطر الملخص - مُعدلة)
   Widget _buildSummaryRow(String label, String value, {bool isBold = false, Color? color, double size = 14}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 14)), // حجم موحد للـ label
+          Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 14)),
           Text(
             value,
             style: TextStyle(
               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
               color: color ?? (isBold ? kPrimaryColor : Colors.black87),
-              fontSize: size, // استخدام الحجم الممرر
+              fontSize: size,
             ),
           ),
         ],
@@ -217,7 +217,6 @@ class BookingPaymentView extends StatelessWidget {
     );
   }
 
-  // (دالة بناء حقل النص - كما هي)
   Widget _buildTextField(TextEditingController controller, String hint) {
     return TextField(
       controller: controller,
@@ -242,22 +241,18 @@ class BookingPaymentView extends StatelessWidget {
     );
   }
 
-  // **** دالة جديدة: بناء حقل الخصم مع زر "Apply" ****
   Widget _buildDiscountField(BuildContext context, BookingPaymentViewModel viewModel) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start, // لمحاذاة زر Apply مع الحقل
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 1. حقل النص
         Expanded(
           child: TextField(
             controller: viewModel.discountController,
-            // تحويل الحروف لكبيرة تلقائياً
             textCapitalization: TextCapitalization.characters,
             decoration: InputDecoration(
               hintText: 'Enter discount code',
               filled: true,
               fillColor: Colors.white,
-              // تعديل الـ border ليتناسب مع الزر
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(10),
@@ -279,20 +274,16 @@ class BookingPaymentView extends StatelessWidget {
                 ),
                 borderSide: BorderSide(color: kPrimaryColor),
               ),
-              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 13.5), // (تعديل بسيط للمحاذاة)
+              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 13.5),
             ),
           ),
         ),
-        // 2. زر "Apply"
         ElevatedButton(
           onPressed: viewModel.isVerifyingDiscount ? null : () {
-            // استدعاء دالة التحقق من الكود
-            FocusScope.of(context).unfocus(); // إخفاء الكيبورد
+            FocusScope.of(context).unfocus();
             viewModel.validateDiscountCode();
           },
-          // إزالة الحواف الدائرية من اليسار ليلتصق بالحقل
           style: ElevatedButton.styleFrom(
-            // تعديل الـ padding ليتناسب مع ارتفاع الحقل
             padding: EdgeInsets.symmetric(vertical: 14, horizontal: 16),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.only(
@@ -308,9 +299,7 @@ class BookingPaymentView extends StatelessWidget {
       ],
     );
   }
-  // *********************************************
 
-  // (دالة بناء خيار الدفع - كما هي)
   Widget _buildPaymentOption({
     required BuildContext context,
     required String title,
@@ -337,4 +326,79 @@ class BookingPaymentView extends StatelessWidget {
       ),
     );
   }
+
+  // **** 3. دالة جديدة: إظهار النافذة المنبثقة لاختيار الدفع ****
+  void _showPaymentOptionsSheet(BuildContext context, BookingPaymentViewModel viewModel) {
+    // دالة مساعدة للانتقال للشاشة المناسبة
+    void _navigateToPayment(Widget paymentScreen) {
+      Navigator.of(context).pop(); // 1. إغلاق الـ BottomSheet
+      Navigator.of(context).push(  // 2. فتح شاشة الدفع المحددة
+        MaterialPageRoute(builder: (context) => paymentScreen),
+      );
+    }
+
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetContext) {
+        return Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Select Payment Method', textAlign: TextAlign.center, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              SizedBox(height: 20),
+
+              // 1. Credit Card
+              ListTile(
+                leading: Icon(Icons.credit_card, color: kPrimaryColor),
+                title: Text('Credit/Debit Card'),
+                onTap: () => _navigateToPayment(CreditCardPaymentView(
+                  provider: viewModel.provider, service: viewModel.service,
+                  selectedDate: viewModel.selectedDate, selectedTime: viewModel.selectedTime,
+                  totalPrice: viewModel.totalPrice, discountCode: viewModel.appliedDiscount?.id,
+                )),
+              ),
+
+              // 2. Vodafone Cash
+              ListTile(
+                leading: Icon(Icons.phone_android, color: Colors.red),
+                title: Text('Vodafone Cash'),
+                onTap: () => _navigateToPayment(VodafoneCashView(
+                  provider: viewModel.provider, service: viewModel.service,
+                  selectedDate: viewModel.selectedDate, selectedTime: viewModel.selectedTime,
+                  totalPrice: viewModel.totalPrice, discountCode: viewModel.appliedDiscount?.id,
+                )),
+              ),
+
+              // 3. InstaPay
+              ListTile(
+                leading: Icon(Icons.send_to_mobile, color: Colors.purple),
+                title: Text('InstaPay'),
+                onTap: () => _navigateToPayment(InstaPayView(
+                  provider: viewModel.provider, service: viewModel.service,
+                  selectedDate: viewModel.selectedDate, selectedTime: viewModel.selectedTime,
+                  totalPrice: viewModel.totalPrice, discountCode: viewModel.appliedDiscount?.id,
+                )),
+              ),
+
+              // 4. PayPal
+              ListTile(
+                leading: Icon(Icons.paypal, color: Colors.blue.shade800),
+                title: Text('PayPal'),
+                onTap: () => _navigateToPayment(PayPalView(
+                  provider: viewModel.provider, service: viewModel.service,
+                  selectedDate: viewModel.selectedDate, selectedTime: viewModel.selectedTime,
+                  totalPrice: viewModel.totalPrice, discountCode: viewModel.appliedDiscount?.id,
+                )),
+              ),
+              SizedBox(height: 10),
+            ],
+          ),
+        );
+      },
+    );
+  }
+// ****************************************************
 }

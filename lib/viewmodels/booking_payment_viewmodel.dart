@@ -3,10 +3,11 @@ import 'package:intl/intl.dart';
 // استيراد الموديلات
 import 'package:ahjizzzapp/models/service_provider.dart';
 import 'package:ahjizzzapp/viewmodels/provider_details_viewmodel.dart';
-import 'package:ahjizzzapp/models/discount_model.dart'; // <-- استيراد موديل الخصم
+import 'package:ahjizzzapp/models/discount_model.dart';
 // استيراد الخدمات
 import 'package:ahjizzzapp/services/auth_service.dart';
 import 'package:ahjizzzapp/services/db_service.dart';
+// (لم نعد بحاجة لاستيراد CreditCardPaymentView)
 
 // (دالة combineDateAndTime المساعدة كما هي)
 DateTime combineDateAndTime(DateTime date, String timeString) {
@@ -26,66 +27,50 @@ class BookingPaymentViewModel extends ChangeNotifier {
   final DbService _dbService;
   final AuthService _authService;
 
-  // البيانات المستلمة
+  // (البيانات المستلمة كما هي)
   final ServiceProvider provider;
   final ProviderServiceModel service;
   final DateTime selectedDate;
   final String selectedTime;
 
-  // --- الحالة (State) ---
+  // (الحالة والـ Controllers كما هي)
   final notesController = TextEditingController();
-  final discountController = TextEditingController(); // Controller لكود الخصم
+  final discountController = TextEditingController();
   PaymentMethod _selectedPaymentMethod = PaymentMethod.payOnArrival;
-  bool _isLoading = false; // (للتحميل العام زر "Confirm")
+  bool _isLoading = false;
   String? _errorMessage;
+  DiscountModel? _appliedDiscount;
+  bool _isVerifyingDiscount = false;
+  String? _discountMessage;
 
-  // **** متغيرات جديدة للخصم ****
-  DiscountModel? _appliedDiscount; // لحفظ الخصم المطبق
-  bool _isVerifyingDiscount = false; // (لإظهار تحميل على زر "Apply")
-  String? _discountMessage; // (لإظهار رسالة "تم تطبيق الخصم" أو "كود خاطئ")
-  // *******************************
-
-  // --- Getters ---
+  // (Getters كما هي)
   PaymentMethod get selectedPaymentMethod => _selectedPaymentMethod;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   String get formattedDate => DateFormat('EEE, d MMM yyyy').format(selectedDate);
   String get formattedTime => selectedTime;
-
-  // **** Getters جديدة للخصم ****
   DiscountModel? get appliedDiscount => _appliedDiscount;
   bool get isVerifyingDiscount => _isVerifyingDiscount;
   String? get discountMessage => _discountMessage;
-  // ******************************
-
-  // --- Getters لحساب السعر ---
   double get originalPrice {
-    // تحويل السعر من نص (مثل "$25") إلى رقم
     try {
-      // إزالة علامة الدولار وأي مسافات
       return double.parse(service.price.replaceAll(r'$', '').trim());
     } catch (e) {
       print("Error parsing service price: ${service.price}");
       return 0.0;
     }
   }
-
   double get discountAmount {
     if (_appliedDiscount != null) {
-      // حساب قيمة الخصم
       return originalPrice * (_appliedDiscount!.discountPercentage / 100.0);
     }
-    return 0.0; // لا يوجد خصم
+    return 0.0;
   }
-
   double get totalPrice {
-    // السعر النهائي بعد الخصم
     return originalPrice - discountAmount;
   }
-  // ***************************
 
-
-  // --- Constructor ---
+  // (Constructor كما هو)
   BookingPaymentViewModel(this._dbService, this._authService, {
     required this.provider,
     required this.service,
@@ -101,31 +86,24 @@ class BookingPaymentViewModel extends ChangeNotifier {
     }
   }
 
-  // **** دالة جديدة للتحقق من كود الخصم ****
+  // (دالة validateDiscountCode كما هي)
   Future<void> validateDiscountCode() async {
-    // التأكد من أن المستخدم كتب كود
     if (discountController.text.trim().isEmpty) {
       _discountMessage = "Please enter a code.";
-      _appliedDiscount = null; // إزالة أي خصم قديم
+      _appliedDiscount = null;
       notifyListeners();
       return;
     }
-
     _isVerifyingDiscount = true;
     _discountMessage = null;
-    notifyListeners(); // إظهار مؤشر التحميل على زر "Apply"
-
+    notifyListeners();
     try {
-      // (يفضل توحيد حالة الأحرف)
       final code = discountController.text.trim().toUpperCase();
       final discount = await _dbService.validateDiscountCode(code);
-
       if (discount != null && discount.isActive) {
-        // إذا الكود صحيح وفعال
         _appliedDiscount = discount;
         _discountMessage = "${discount.discountPercentage.toInt()}% discount applied!";
       } else {
-        // إذا الكود خاطئ أو غير فعال
         _appliedDiscount = null;
         _discountMessage = "This code is invalid or has expired.";
       }
@@ -134,13 +112,12 @@ class BookingPaymentViewModel extends ChangeNotifier {
       _discountMessage = "Error validating code. Try again.";
     } finally {
       _isVerifyingDiscount = false;
-      notifyListeners(); // إخفاء التحميل وتحديث الواجهة بالسعر الجديد
+      notifyListeners();
     }
   }
-  // ****************************************
 
-  // **** تعديل دالة confirmBooking ****
-  Future<bool> confirmBooking() async {
+  // (دالة "الدفع عند الوصول")
+  Future<bool> submitPayOnArrivalBooking() async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -150,7 +127,6 @@ class BookingPaymentViewModel extends ChangeNotifier {
       if (userId == null) throw Exception("User not logged in.");
       final DateTime bookingDateTime = combineDateAndTime(selectedDate, selectedTime);
 
-      // (استدعاء DbService مع تمرير السعر النهائي وكود الخصم المطبق)
       await _dbService.createBooking(
         userId: userId,
         providerId: provider.id,
@@ -158,16 +134,14 @@ class BookingPaymentViewModel extends ChangeNotifier {
         serviceId: service.id,
         serviceName: service.name,
         dateTime: bookingDateTime,
-        // (يمكنك حفظ السعر الأصلي والسعر بعد الخصم، أو السعر النهائي فقط)
-        price: "\$${totalPrice.toStringAsFixed(2)}", // حفظ السعر النهائي كنص
+        price: "\$${totalPrice.toStringAsFixed(2)}",
         notes: notesController.text.trim().isEmpty ? null : notesController.text.trim(),
-        paymentMethod: _selectedPaymentMethod.name,
-        // حفظ الكود الذي تم استخدامه
-        discountCode: _appliedDiscount?.id, // (نحفظ ID الخصم إذا تم تطبيقه)
+        paymentMethod: "pay_on_arrival", // <-- تحديد طريقة الدفع
+        discountCode: _appliedDiscount?.id,
         status: 'upcoming',
       );
 
-      print("Booking Saved to Firestore!");
+      print("Booking Saved to Firestore (Pay on Arrival)!");
       _isLoading = false;
       notifyListeners();
       return true;
@@ -178,6 +152,51 @@ class BookingPaymentViewModel extends ChangeNotifier {
       _errorMessage = "An error occurred: ${e.toString().replaceFirst('Exception: ', '')}";
       notifyListeners();
       return false;
+    }
+  }
+
+  // **** دالة جديدة: "محاكاة الدفع الأونلاين" ****
+  // (هذه الدالة ستقوم بالحجز بعد محاكاة الدفع)
+  Future<bool> submitOnlinePaymentSimulation() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners(); // إظهار التحميل (سيغطي الشاشة كلها)
+
+    try {
+      // 1. محاكاة وقت الاتصال بالبنك (ننتظر ثانيتين)
+      await Future.delayed(Duration(seconds: 2));
+      print("Payment Simulation Successful!");
+
+      // 2. بما أن الدفع "نجح"، قم بإنشاء الحجز في Firestore
+      final String? userId = _authService.currentUser?.uid;
+      if (userId == null) throw Exception("User not logged in.");
+      final DateTime bookingDateTime = combineDateAndTime(selectedDate, selectedTime);
+
+      await _dbService.createBooking(
+        userId: userId,
+        providerId: provider.id,
+        providerName: provider.name,
+        serviceId: service.id,
+        serviceName: service.name,
+        dateTime: bookingDateTime,
+        price: "\$${totalPrice.toStringAsFixed(2)}", // السعر النهائي
+        notes: notesController.text.trim().isEmpty ? null : notesController.text.trim(),
+        paymentMethod: "online_paid", // <-- تحديد أنه تم الدفع أونلاين
+        discountCode: _appliedDiscount?.id,
+        status: 'upcoming',
+      );
+
+      print("Booking Saved to Firestore after successful payment!");
+      _isLoading = false;
+      notifyListeners();
+      return true; // نجح الدفع والحجز
+
+    } catch (e) {
+      print("Error submitting online payment: $e");
+      _isLoading = false;
+      _errorMessage = "An error occurred: ${e.toString().replaceFirst('Exception: ', '')}";
+      notifyListeners();
+      return false; // فشل الدفع أو الحجز
     }
   }
   // **********************************
